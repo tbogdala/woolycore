@@ -42,7 +42,7 @@ typedef struct llama_predict_prompt_cache
 
 static bool 
 file_exists(
-    const std::string &path) 
+    const std::string & path) 
 {
     std::ifstream f(path.c_str());
     return f.good();
@@ -50,7 +50,7 @@ file_exists(
 
 static bool 
 file_is_empty(
-    const std::string &path) 
+    const std::string & path) 
 {
     std::ifstream f;
     f.exceptions(std::ifstream::failbit | std::ifstream::badbit);
@@ -77,29 +77,6 @@ delete_vector(
 {
     delete vec;
 }
-
-// this is a dupe of the `llama_token_to_piece` function from `common` but with a parameter
-// to control the printing of special tokens.
-static std::string 
-llama_token_to_str(
-    const struct llama_context * ctx, 
-    llama_token token, 
-    bool include_specials) 
-{
-    std::vector<char> result(8, 0);
-    const int n_tokens = llama_token_to_piece(llama_get_model(ctx), token, result.data(), result.size(), include_specials);
-    if (n_tokens < 0) {
-        result.resize(-n_tokens);
-        int check = llama_token_to_piece(llama_get_model(ctx), token, result.data(), result.size(), include_specials);
-        GGML_ASSERT(check == -n_tokens);
-    } else {
-        result.resize(n_tokens);
-    }
-
-    return std::string(result.data(), result.size());
-}
-
-
 
 wooly_load_model_result 
 wooly_load_model(
@@ -243,7 +220,7 @@ wooly_predict(
         if (prompt_cache_data->last_prompt == params.prompt) {
             LOG("Prompt match detected. Going to attempt to use last processed prompt token data and state.\n");
             resuse_last_prompt_data = true;
-            llama_set_state_data(ctx, prompt_cache_data->last_processed_prompt_state);
+            llama_state_set_data(ctx, prompt_cache_data->last_processed_prompt_state);
         } else {
             // new prompt detected, so free the memory of the cached state
             if (prompt_cache_data->last_processed_prompt_state != nullptr) {
@@ -289,7 +266,9 @@ wooly_predict(
     }
 
     const bool add_bos = llama_should_add_bos_token(model);
-    GGML_ASSERT(llama_add_eos_token(model) != 1);
+    if (!llama_model_has_encoder(model)) {
+        GGML_ASSERT(llama_add_eos_token(model) != 1);
+    }
     LOG("add_bos: %d\n", add_bos);
 
     std::vector<llama_token> embd_inp;
@@ -308,8 +287,14 @@ wooly_predict(
 
     // Should not run without any tokens
     if (embd_inp.empty()) {
-        embd_inp.push_back(llama_token_bos(model));
-        LOG("embd_inp was considered empty and bos was added: %s\n", LOG_TOKENS_TOSTR_PRETTY(ctx, embd_inp).c_str());
+        if (add_bos) {
+            embd_inp.push_back(llama_token_bos(model));
+            LOG("embd_inp was considered empty and bos was added: %s\n", LOG_TOKENS_TOSTR_PRETTY(ctx, embd_inp).c_str());
+        } else {
+            LOG("error: input is empty\n");
+            return_value.result = 7;
+            return return_value;
+        }
     }
 
     // Tokenize negative prompt
@@ -436,6 +421,13 @@ wooly_predict(
     }
 
     struct llama_sampling_context * ctx_sampling =  llama_sampling_init(sparams);
+    if (!ctx_sampling) {
+        LOG("%s: failed to initialize sampling subsystem\n", __func__);
+        return_value.result = 5;
+        return return_value;
+    }
+
+    
 
     // our result to send back to Rust
     std::string res = "";
@@ -447,6 +439,24 @@ wooly_predict(
         embd_inp.clear();
         n_past = prompt_cache_data->processed_prompt_tokens.size();
         LOG("%s: reusing prompt tokens; initializing n_consumed to %d\n",  __func__, n_consumed);
+    } 
+    else if (llama_model_has_encoder(model)) {
+        int enc_input_size = embd_inp.size();
+        llama_token * enc_input_buf = embd_inp.data();
+
+        if (llama_encode(ctx, llama_batch_get_one(enc_input_buf, enc_input_size, 0, 0))) {
+            LOG("%s : failed to eval\n", __func__);
+            return_value.result = 6;
+            return return_value;
+        }
+
+        llama_token decoder_start_token_id = llama_model_decoder_start_token(model);
+        if (decoder_start_token_id == -1) {
+            decoder_start_token_id = llama_token_bos(model);
+        }
+
+        embd_inp.clear();
+        embd_inp.push_back(decoder_start_token_id);
     }
 
     while (n_remain != 0 && !is_antiprompt) {
@@ -576,9 +586,9 @@ wooly_predict(
                 if (prompt_cache_data->last_processed_prompt_state != nullptr) {
                     delete[] prompt_cache_data->last_processed_prompt_state;
                 }
-                const size_t state_size = llama_get_state_size(ctx);
+                const size_t state_size = llama_state_get_size(ctx);
                 prompt_cache_data->last_processed_prompt_state = new uint8_t[state_size];
-                llama_copy_state_data(ctx, prompt_cache_data->last_processed_prompt_state);
+                llama_state_get_data(ctx, prompt_cache_data->last_processed_prompt_state);
                 prompt_cache_data->last_prompt = params.prompt;
                 LOG("Adding to the processed_prompt_tokens vector %d tokens from embd_inp.\n", (int)embd_inp.size());
                 prompt_cache_data->processed_prompt_tokens.insert(prompt_cache_data->processed_prompt_tokens.end(), embd_inp.begin(),embd_inp.end());
@@ -599,14 +609,14 @@ wooly_predict(
 
             // call the token callback with the newly predicted token
             if (token_cb != NULL) {
-                auto token_str = llama_token_to_str(ctx, id, include_specials);
+                auto token_str = llama_token_to_piece(ctx, id, include_specials);
                 if (!token_cb(token_str.c_str())) {
                     break;
                 }
             }
 
             for (auto id : embd) {
-                res += llama_token_to_str(ctx, id, include_specials);
+                res += llama_token_to_piece(ctx, id, include_specials);
             }
         } else {
             // some user input remains from prompt or interaction, forward it to processing
@@ -664,7 +674,7 @@ wooly_predict(
         }
 
         // end of generation
-        if (!embd.empty() && llama_token_is_eog(model, embd.back())) {
+        if (llama_token_is_eog(model, llama_sampling_last(ctx_sampling))) {
             LOG(" [end of text]\n");
             break;
         }
