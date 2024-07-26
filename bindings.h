@@ -31,7 +31,7 @@ typedef struct wooly_load_model_result {
 
 typedef struct wooly_predict_result {
     // 0 == success; 1 >= failure
-    int result;
+    int32_t result;
 
     // a pointer to llama_predict_prompt_cache, which is opaque to the bindings.
     void* prompt_cache;
@@ -44,8 +44,8 @@ typedef struct wooly_predict_result {
     double t_p_eval_ms;
     double t_eval_ms;
 
-    int n_sample;
-    int n_p_eval;
+    int32_t n_sample;
+    int32_t n_p_eval;
     int n_eval;
 } wooly_predict_result;
 
@@ -114,7 +114,7 @@ typedef struct wooly_llama_context_params {
 typedef struct wooly_gpt_params {
     const char* prompt;
     const char ** antiprompts;
-    int antiprompt_count;
+    int32_t antiprompt_count;
 
     uint32_t seed;              // RNG seed
     int32_t n_threads;
@@ -135,7 +135,7 @@ typedef struct wooly_gpt_params {
     float   yarn_beta_fast;     // YaRN low correction dim
     float   yarn_beta_slow;     // YaRN high correction dim
     int32_t yarn_orig_ctx;      // YaRN original context length
-    int rope_scaling_type;
+    int32_t rope_scaling_type;
 
     bool prompt_cache_all;      // save user input and generations to prompt cache
     bool ignore_eos;            // ignore generated EOS tokens
