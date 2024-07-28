@@ -9,7 +9,7 @@ from July 27, 2024.
 
 At present, it is in pre-alpha development and the API is unstable. 
 
-Supported Operating Systems: MacOS, iOS, Android (more to come!)
+Supported Operating Systems: MacOS, Linux, iOS, Android (more to come!)
 
 ## List of programming language integrations
 
@@ -42,7 +42,14 @@ cmake --build build --config Release
 ```
 
 This should automatically include Metal support and embed the shaders if the library is being built on MacOS.
+For systems that support CUDA accelleration, you'll need to enable it using an additional compilation flag
+as follows:
 
+```bash
+cmake -B build GGML_CUDA=On
+cmake --build build --config Release
+```
+    
 
 ## Git updates
 
