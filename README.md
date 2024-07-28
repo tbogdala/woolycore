@@ -46,7 +46,7 @@ For systems that support CUDA accelleration, you'll need to enable it using an a
 as follows:
 
 ```bash
-cmake -B build GGML_CUDA=On
+cmake -B build -DGGML_CUDA=On
 cmake --build build --config Release
 ```
     
