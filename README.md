@@ -9,7 +9,7 @@ from July 27, 2024.
 
 At present, it is in pre-alpha development and the API is unstable. 
 
-Supported Operating Systems: MacOS, Linux, iOS, Android (more to come!)
+Supported Operating Systems: Windows, MacOS, Linux, iOS, Android
 
 ## List of programming language integrations
 
@@ -41,15 +41,27 @@ cmake -B build
 cmake --build build --config Release
 ```
 
-This should automatically include Metal support and embed the shaders if the library is being built on MacOS.
-For systems that support CUDA accelleration, you'll need to enable it using an additional compilation flag
+This should automatically include Metal support and embed the shaders if the library is being built on MacOS. Other
+platforms will only have CPU support without additional flags.
+
+For systems that support CUDA acceleration, like Linux, you'll need to enable it using an additional compilation flag
 as follows:
 
 ```bash
-cmake -B build -DGGML_CUDA=On
+cmake -B build -DGGML_CUDA=On -DCMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=TRUE -DBUILD_SHARED_LIBS=TRUE
 cmake --build build --config Release
 ```
-    
+
+On Windows, you'll need a few more flags to make sure that all the functions are exported and
+available on the compiled library (And the resulting `build/Release/woolycore.dll` file will
+need to be able to find the `build/bin/Release/ggml.dll` and `build/bin/Release/llama.dll` files
+at runtime when deployed, so copy the three dlls to the same directory.)
+
+```bash
+cmake -B build -DGGML_CUDA=On -DCMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=TRUE -DBUILD_SHARED_LIBS=TRUE
+cmake --build build --config Release
+```
+
 
 ## Git updates
 
