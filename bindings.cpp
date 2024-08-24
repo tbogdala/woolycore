@@ -38,6 +38,7 @@ typedef struct llama_predict_prompt_cache
     std::string last_prompt;
     std::vector<llama_token> processed_prompt_tokens;
     uint8_t * last_processed_prompt_state;
+    size_t last_processed_prompt_state_size;
 } llama_predict_prompt_cache;
 
 static bool 
@@ -220,12 +221,13 @@ wooly_predict(
         if (prompt_cache_data->last_prompt == params.prompt) {
             LOG("Prompt match detected. Going to attempt to use last processed prompt token data and state.\n");
             resuse_last_prompt_data = true;
-            llama_state_set_data(ctx, prompt_cache_data->last_processed_prompt_state);
+            llama_state_set_data(ctx, prompt_cache_data->last_processed_prompt_state, prompt_cache_data->last_processed_prompt_state_size);
         } else {
             // new prompt detected, so free the memory of the cached state
             if (prompt_cache_data->last_processed_prompt_state != nullptr) {
                 delete[] prompt_cache_data->last_processed_prompt_state;
                 prompt_cache_data->last_processed_prompt_state = nullptr;
+                prompt_cache_data->last_processed_prompt_state_size = 0;
             }
             prompt_cache_data->processed_prompt_tokens.clear();
         }
@@ -233,6 +235,7 @@ wooly_predict(
         // if we don't have a prompt cache object, create one
         prompt_cache_data = new llama_predict_prompt_cache;
         prompt_cache_data->last_processed_prompt_state = nullptr;
+        prompt_cache_data->last_processed_prompt_state_size = 0;
     }
     // also copy the pointer of the prompt_cache_data to the result here now that it's for sure allocated
     return_value.prompt_cache = prompt_cache_data;
@@ -265,9 +268,9 @@ wooly_predict(
         }
     }
 
-    const bool add_bos = llama_should_add_bos_token(model);
+    const bool add_bos = llama_add_bos_token(model);
     if (!llama_model_has_encoder(model)) {
-        GGML_ASSERT(llama_add_eos_token(model) != 1);
+        GGML_ASSERT(!llama_add_eos_token(model));
     }
     LOG("add_bos: %d\n", add_bos);
 
@@ -588,7 +591,8 @@ wooly_predict(
                 }
                 const size_t state_size = llama_state_get_size(ctx);
                 prompt_cache_data->last_processed_prompt_state = new uint8_t[state_size];
-                llama_state_get_data(ctx, prompt_cache_data->last_processed_prompt_state);
+                prompt_cache_data->last_processed_prompt_state_size = state_size;
+                llama_state_get_data(ctx, prompt_cache_data->last_processed_prompt_state, state_size);
                 prompt_cache_data->last_prompt = params.prompt;
                 LOG("Adding to the processed_prompt_tokens vector %d tokens from embd_inp.\n", (int)embd_inp.size());
                 prompt_cache_data->processed_prompt_tokens.insert(prompt_cache_data->processed_prompt_tokens.end(), embd_inp.begin(),embd_inp.end());
