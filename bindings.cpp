@@ -173,15 +173,13 @@ wooly_predict(
     wooly_predict_result return_value;
     return_value.n_eval = return_value.n_p_eval = return_value.n_sample = 0;
     
-    llama_set_n_threads(ctx, params.n_threads, params.n_threads_batch);
     llama_kv_cache_clear(ctx);
     llama_reset_timings(ctx);
         
     // print system information
     {
-        // TODO: Update the build.rs file to generate llama.cpp/common/build-info.cpp
-        // LOG("%s: build = %d (%s)\n",      __func__, LLAMA_BUILD_NUMBER, LLAMA_COMMIT);
-        // LOG("%s: built with %s for %s\n", __func__, LLAMA_COMPILER, LLAMA_BUILD_TARGET);
+        LOG("%s: build = %d (%s)\n",      __func__, LLAMA_BUILD_NUMBER, LLAMA_COMMIT);
+        LOG("%s: built with %s for %s\n", __func__, LLAMA_COMPILER, LLAMA_BUILD_TARGET);
         LOG("\n");
         LOG("%s\n", gpt_params_get_system_info(params).c_str());
     }
@@ -204,6 +202,42 @@ wooly_predict(
         ctx_guidance = llama_new_context_with_model(model, lparams);
     }
 
+    LOG("%s: llama threadpool init = n_threads = %d\n",
+        __func__,
+        (int) params.cpuparams.n_threads
+    );
+    struct ggml_threadpool_params tpp_batch =
+            ggml_threadpool_params_from_cpu_params(params.cpuparams_batch);
+    struct ggml_threadpool_params tpp =
+            ggml_threadpool_params_from_cpu_params(params.cpuparams);
+
+    set_process_priority(params.cpuparams.priority);
+
+    struct ggml_threadpool * threadpool_batch = NULL;
+    if (!ggml_threadpool_params_match(&tpp, &tpp_batch)) {
+        threadpool_batch = ggml_threadpool_new(&tpp_batch);
+        if (!threadpool_batch) {
+            LOG("%s: batch threadpool create failed : n_threads %d\n", __func__, tpp_batch.n_threads);
+            return_value.result = 8;
+            return return_value;
+        }
+
+        // Start the non-batch threadpool in the paused state
+        tpp.paused = true;
+    }
+
+    struct ggml_threadpool * threadpool = ggml_threadpool_new(&tpp);
+    if (!threadpool) {
+        LOG("%s: threadpool create failed : n_threads %d\n", __func__, tpp.n_threads);
+        return_value.result = 9;
+        return return_value;
+    }
+
+    llama_attach_threadpool(ctx, threadpool, threadpool_batch);
+    if (ctx_guidance) {
+        llama_attach_threadpool(ctx_guidance, threadpool, threadpool_batch);
+    }        
+    
     const int n_ctx_train = llama_n_ctx_train(model);
     const int n_ctx = llama_n_ctx(ctx);
 
@@ -706,7 +740,9 @@ wooly_predict(
 
     if (ctx_guidance) { llama_free(ctx_guidance); }
     llama_sampling_free(ctx_sampling);
-    
+    ggml_threadpool_free(threadpool);
+    ggml_threadpool_free(threadpool_batch);   
+
     LOG("Log end\n");
 
     return return_value;
@@ -735,8 +771,8 @@ wooly_new_gpt_params()
     output.antiprompts = nullptr;
     output.antiprompt_count = 0;
     output.seed = prototype.seed;
-    output.n_threads = prototype.n_threads;
-    output.n_threads_batch = prototype.n_threads_batch;
+    output.n_threads = prototype.cpuparams.n_threads;
+    output.n_threads_batch = prototype.cpuparams_batch.n_threads;
     output.n_predict = prototype.n_predict;
     output.n_ctx = prototype.n_ctx;
     output.n_batch = prototype.n_batch;
@@ -794,8 +830,8 @@ fill_gpt_params_from_simple(
 
     output->seed = simple->seed;
     output->sparams.seed = simple->seed;
-    output->n_threads = simple->n_threads;
-    output->n_threads_batch = simple->n_threads_batch > 0 ? simple->n_threads_batch : simple->n_threads;
+    output->cpuparams.n_threads = simple->n_threads > 0 ? simple->n_threads : cpu_get_num_math();
+    output->cpuparams_batch.n_threads = simple->n_threads_batch > 0 ? simple->n_threads_batch : output->cpuparams.n_threads;
     output->n_predict = simple->n_predict;
     output->n_ctx = simple->n_ctx;
     output->n_batch = simple->n_batch;
