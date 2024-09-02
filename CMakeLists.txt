@@ -23,3 +23,14 @@ target_link_libraries(woolycore PRIVATE common)
 # target_include_directories(woolycore_static PUBLIC "llama.cpp")
 # target_compile_features(woolycore_static PRIVATE cxx_std_11) # don't bump
 # target_link_libraries(woolycore_static PRIVATE common llama)
+
+
+# Unit testing
+
+add_subdirectory(unity)
+add_executable(test_predictions tests/test_predictions.c)
+target_include_directories(test_predictions PRIVATE 
+    "llama.cpp/include"
+    "llama.cpp/ggml/include"
+)
+target_link_libraries(test_predictions PRIVATE woolycore unity)

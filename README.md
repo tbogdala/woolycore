@@ -66,6 +66,24 @@ cmake --build build --config Release
 ```
 
 
+## Unit tests
+
+The unit tests use the [Unity library](https://github.com/ThrowTheSwitch/Unity) 
+and get compiled when building the main library bindings. You should see them as executables
+in the `build` folder (e.g. `build/test_predictions`). Simply running the program will execute the
+unit tests contained in it. 
+
+By convention, the unit tests require an environment variable (WOOLY_TEST_MODEL_FILE) to be set 
+with the path to the GGUF file for the model to use during testing.
+
+In a unix environment, that means you can do something like this to run the unit tests:
+
+```bash
+export WOOLY_TEST_MODEL_FILE=models/example-llama-3-8b.gguf
+build/test_predictions
+```
+
+
 ## Git updates
 
 This project uses submodules for upstream projects so make sure to update with appropriate parameters:

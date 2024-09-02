@@ -1,3 +1,6 @@
 [submodule "llama.cpp"]
 	path = llama.cpp
 	url = https://github.com/ggerganov/llama.cpp.git
+[submodule "unity"]
+	path = unity
+	url = https://github.com/ThrowTheSwitch/Unity.git
