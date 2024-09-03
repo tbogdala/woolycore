@@ -141,6 +141,10 @@ typedef struct wooly_gpt_params {
     bool ignore_eos;            // ignore generated EOS tokens
     bool flash_attn;            // flash attention
 
+    // embedding
+    bool embedding;             // get only sentence embedding
+    int32_t embd_normalize;     // normalisation for embendings (-1=none, 0=max absolute int16, 1=taxicab, 2=euclidean, >2=p-norm)
+    
     /* incorporate llama_sampling_params members too*/
 
     int32_t     top_k;                  // <= 0 to use vocab size
@@ -168,6 +172,9 @@ typedef struct wooly_gpt_params {
 // or if the prediction should stop (false).
 typedef bool (*wooly_token_update_callback)(const char *token_str);
 
+// loads a GGUF compatible model from the provided `fname` filepath, using the
+// parameters provided to control features. if `silent_llama` is set to true,
+// then attempts will be made to curb all output from the upstream llama.cpp library.
 LLAMA_API wooly_load_model_result 
 wooly_load_model(
     const char *fname, 
@@ -175,14 +182,23 @@ wooly_load_model(
     wooly_llama_context_params context_params,
     bool silent_llama);
         
+// frees the memory needed by the model and unloads it from memory.
 LLAMA_API void 
 wooly_free_model(
     void *llama_context_ptr, 
     void *llama_model_ptr);
 
+// gets a new set of text generation parameters that is a reduced set of
+// parameters that upstream llama.cpp uses. 
 LLAMA_API wooly_gpt_params 
 wooly_new_gpt_params();
 
+// run a text prediction base on the `simple_params` passed in, which is a reduced
+// set of parameters upstream llama.cpp uses. `out_result` is a `char` buffer that
+// should be large enough to hold the generated output. `prompt_cache_ptr` is a 
+// pointer to the last used prompt cache from a previous `wooly_predict_result` and
+// can be NULL if no cache is to be used; using the cache saves the function from
+// having to process the same prompt again.
 LLAMA_API wooly_predict_result 
 wooly_predict(
     wooly_gpt_params simple_params, 
@@ -199,12 +215,78 @@ LLAMA_API void
 wooly_free_prompt_cache(
     void *prompt_cache_ptr);
 
+// creates a new set of model parameters based on the defaults 
+// of upstream llama.cpp.
 LLAMA_API wooly_llama_model_params
 wooly_get_default_llama_model_params();
 
-
+// creates a new set of context parameters based on the defaults 
+// of upstream llama.cpp.
 LLAMA_API wooly_llama_context_params
 wooly_get_default_llama_context_params();
+
+// returns the size of the embedding vectors used by the model.
+LLAMA_API int32_t 
+wooly_llama_n_embd(
+    void *llama_model_ptr
+);
+
+// tokenizes the `text` passed in. if `out_tokens` is not null, then it
+// will copy at most `out_tokens_size` tokens to the `out_tokens` buffer
+// and return total number of tokens copied. if `out_tokens` is null,
+// the function simply returns the number of tokens for the `text`.
+LLAMA_API size_t
+wooly_llama_tokenize(
+    void *llama_model_ptr, 
+    const char* text,
+    bool add_special,
+    bool parse_special,
+    int32_t* out_tokens,
+    size_t out_tokens_size
+);
+
+// calculates embeddings for the given token arrays. 
+//
+//      `pooling_type` should correspond to `llama_pooling_type` values. 
+//          As long as it's not LLAMA_POOLING_TYPE_NONE, a single embedding
+//          vector will be created for each tokenized prompt passed in
+//          as `token_arrays`. If no pooling, then each token gets its
+//          own embedding vector.
+//      `embd_normalize` uses the same values as the same-named member 
+//          of `wooly_gpt_params`. `token_array_count`
+//      `token_array_count` should be the number of `int32_t*` pointers
+//          passed in as `token_arrays` and is essentially the number of
+//          'prompts' that have been tokenzed for embedding creation.
+//      `token_arrays` is an array of pointers to tokenized prompts, the
+//          length of each array is passed in under `token_array_sizes`.
+//      `token_array_sizes` is an array of sizes to determine the number
+//          of `int32_t` tokens in each prompt passed in as `token_arrays`.
+//      `output_embeddings` is a pointer to a `float` array to hold the
+//          embeddings generated. The required size of this buffer changes
+//          based on the `pooling_type` - if `pooling_type` is 
+//          LLAMA_POOLING_TYPE_NONE, then required memory is 
+//          `sizeof(float) * n_embd * total_token_count`. If there is
+//          pooling, then each prompt is reduced to one embedding vector
+//          so the memory required is `sizeof(float) * n_embd * total_prompts`.
+//          In these expressions n_embd is the size of the embedding vector
+//          used by the model and can be retrieved by calling `wooly_llama_n_embd()`.
+//      `output_embeddings_size` is a safetey measure to make sure the output
+//          buffer has enough space for the result.
+//  The function returns 0 on success and `-(required_size)` if the output buffer
+//  is not big enough; getting the abs() of the return value will yield the size needed.
+LLAMA_API long
+wooly_llama_make_embeddings(
+    void *llama_model_ptr,
+    void *llama_context_ptr,
+    int32_t batch_size,
+    int32_t pooling_type,
+    int32_t embd_normalize,
+    size_t token_array_count,
+    int32_t** token_arrays,
+    size_t* token_array_sizes,
+    float* output_embeddings,
+    size_t output_embeddings_size
+);
 
 #ifdef __cplusplus
 }

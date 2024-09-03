@@ -28,9 +28,19 @@ target_link_libraries(woolycore PRIVATE common)
 # Unit testing
 
 add_subdirectory(unity)
+
 add_executable(test_predictions tests/test_predictions.c)
 target_include_directories(test_predictions PRIVATE 
     "llama.cpp/include"
     "llama.cpp/ggml/include"
 )
 target_link_libraries(test_predictions PRIVATE woolycore unity)
+
+add_executable(test_embeddings tests/test_embeddings.cpp)
+target_include_directories(test_embeddings PRIVATE 
+    "llama.cpp/include"
+    "llama.cpp/ggml/include"
+    "llama.cpp/common"
+)
+target_compile_features(test_embeddings PRIVATE cxx_std_11)
+target_link_libraries(test_embeddings PRIVATE woolycore common llama unity)

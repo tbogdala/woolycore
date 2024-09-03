@@ -794,6 +794,9 @@ wooly_new_gpt_params()
     output.ignore_eos = prototype.ignore_eos;
     output.flash_attn = prototype.flash_attn;
 
+    output.embedding = prototype.embedding;
+    output.embd_normalize = prototype.embd_normalize;
+
     output.top_k = prototype.sparams.top_k;
     output.top_p = prototype.sparams.top_p;
     output.min_p = prototype.sparams.min_p;
@@ -852,6 +855,9 @@ fill_gpt_params_from_simple(
     output->prompt_cache_all = simple->prompt_cache_all;
     output->ignore_eos = simple->ignore_eos;
     output->flash_attn = simple->flash_attn;
+
+    output->embedding = simple->embedding;
+    output->embd_normalize = simple->embd_normalize;
 
     output->sparams.top_k = simple->top_k;
     output->sparams.top_p = simple->top_p;
@@ -968,4 +974,151 @@ conv_wooly_to_llama_context_params(wooly_llama_context_params wooly_params)
     params.flash_attn = wooly_params.flash_attn;
 
     return params;
+}
+
+int32_t 
+wooly_llama_n_embd(void *llama_model_ptr) 
+{
+    return llama_n_embd((const llama_model *)llama_model_ptr);
+}
+
+size_t
+wooly_llama_tokenize(
+    void *llama_model_ptr, 
+    const char* text,
+    bool add_special,
+    bool parse_special,
+    int32_t* out_tokens,
+    size_t out_tokens_size)
+{
+    auto tokens = ::llama_tokenize(
+        (const llama_model *)llama_model_ptr, 
+        text, 
+        add_special, 
+        parse_special);
+
+    if (out_tokens != NULL) {
+        // clip the maximum copy size to the output buffer size
+        size_t copy_size = std::min(out_tokens_size, tokens.size());
+        std::copy(tokens.begin(), tokens.begin() + copy_size, out_tokens);
+        return copy_size;
+    } else {
+        return tokens.size();
+    }
+}
+
+// yoinked from the embedding.cpp example in upstream llama.cpp
+static void batch_add_seq(llama_batch & batch, const std::vector<int32_t> & tokens, llama_seq_id seq_id) {
+    size_t n_tokens = tokens.size();
+    for (size_t i = 0; i < n_tokens; i++) {
+        llama_batch_add(batch, tokens[i], i, { seq_id }, true);
+    }
+}
+
+// yoinked from the embedding.cpp example in upstream llama.cpp
+static void batch_decode_embeddings(llama_context * ctx, llama_batch & batch, float * output, int n_seq, int n_embd, int embd_norm) {
+    const enum llama_pooling_type pooling_type = llama_pooling_type(ctx);
+    const struct llama_model * model = llama_get_model(ctx);
+
+    // clear previous kv_cache values (irrelevant for embeddings)
+    llama_kv_cache_clear(ctx);
+
+    // run model
+    fprintf(stderr, "%s: n_tokens = %d, n_seq = %d\n", __func__, batch.n_tokens, n_seq);
+    if (llama_model_has_encoder(model) && !llama_model_has_decoder(model)) {
+        // encoder-only model
+        if (llama_encode(ctx, batch) < 0) {
+            fprintf(stderr, "%s : failed to encode\n", __func__);
+        }
+    } else if (!llama_model_has_encoder(model) && llama_model_has_decoder(model)) {
+        // decoder-only model
+        if (llama_decode(ctx, batch) < 0) {
+            fprintf(stderr, "%s : failed to decode\n", __func__);
+        }
+    }
+
+    for (int i = 0; i < batch.n_tokens; i++) {
+        if (!batch.logits[i]) {
+            continue;
+        }
+
+        const float * embd = nullptr;
+        int embd_pos = 0;
+
+        if (pooling_type == LLAMA_POOLING_TYPE_NONE) {
+            // try to get token embeddings
+            embd = llama_get_embeddings_ith(ctx, i);
+            embd_pos = i;
+            GGML_ASSERT(embd != NULL && "failed to get token embeddings");
+        } else {
+            // try to get sequence embeddings - supported only when pooling_type is not NONE
+            embd = llama_get_embeddings_seq(ctx, batch.seq_id[i][0]);
+            embd_pos = batch.seq_id[i][0];
+            GGML_ASSERT(embd != NULL && "failed to get sequence embeddings");
+        }
+
+        float * out = output + embd_pos * n_embd;
+        llama_embd_normalize(embd, out, n_embd, embd_norm);
+    }
+}
+
+long
+wooly_llama_make_embeddings(
+    void *llama_model_ptr,
+    void *llama_context_ptr,
+    int32_t batch_size,
+    int32_t pooling_type,
+    int32_t embd_normalize,
+    size_t token_array_count,
+    int32_t** token_arrays,
+    size_t* token_array_sizes,
+    float* output_embeddings,
+    size_t output_embeddings_size)
+{
+    // count number of embeddings; if no pooling, then each token has its own
+    // embedding vector, otherwise all of the embeddings for a given prompt are processed and
+    // reduced down to one embedding vector.
+    // n_embd_count ends up being the total number of embedding vectors needed for the output.
+    int n_embd_count = 0;
+    if (pooling_type == LLAMA_POOLING_TYPE_NONE) {
+        for (int k = 0; k < token_array_count; k++) {
+            n_embd_count += token_array_sizes[k];
+        }
+    } else {
+        n_embd_count = token_array_count;
+    }
+
+    // allocate output
+    const int n_embd = wooly_llama_n_embd(llama_model_ptr);
+    if (output_embeddings_size < n_embd_count * n_embd) {
+        return -(n_embd_count * n_embd); // output buffer is too small
+    }
+
+    // break into batches
+    struct llama_batch batch = llama_batch_init(batch_size, 0, 1);
+    int e = 0; // number of embeddings already stored
+    int s = 0; // number of prompts in current batch
+    for (int k = 0; k < token_array_count; k++) {
+        std::vector<int32_t> inp(token_arrays[k], token_arrays[k] + token_array_sizes[k]);
+        const uint64_t n_toks = inp.size();
+
+        // encode if at capacity
+        if (batch.n_tokens + n_toks > batch_size) {
+            float * out = output_embeddings + e * n_embd;
+            batch_decode_embeddings(static_cast<llama_context *>(llama_context_ptr), batch, out, s, n_embd, embd_normalize);
+            e += pooling_type == LLAMA_POOLING_TYPE_NONE ? batch.n_tokens : s;
+            s = 0;
+            llama_batch_clear(batch);
+        }
+
+        // add to batch
+        batch_add_seq(batch, inp, s);
+        s += 1;
+    }
+
+    // final batch - after this our embeddings vector should be fully populated
+    float * out = output_embeddings + e * n_embd;
+    batch_decode_embeddings(static_cast<llama_context *>(llama_context_ptr), batch, out, s, n_embd, embd_normalize);
+
+    return 0;
 }

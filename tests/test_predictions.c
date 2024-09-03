@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include "unity.h"
 #include "../bindings.h" 
-#include "llama.h"
 
 void setUp(void) {}
 void tearDown(void) {}
