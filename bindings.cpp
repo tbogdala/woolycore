@@ -982,14 +982,14 @@ wooly_llama_n_embd(void *llama_model_ptr)
     return llama_n_embd((const llama_model *)llama_model_ptr);
 }
 
-size_t
+int64_t
 wooly_llama_tokenize(
     void *llama_model_ptr, 
     const char* text,
     bool add_special,
     bool parse_special,
     int32_t* out_tokens,
-    size_t out_tokens_size)
+    int64_t out_tokens_size)
 {
     auto tokens = ::llama_tokenize(
         (const llama_model *)llama_model_ptr, 
@@ -999,7 +999,7 @@ wooly_llama_tokenize(
 
     if (out_tokens != NULL) {
         // clip the maximum copy size to the output buffer size
-        size_t copy_size = std::min(out_tokens_size, tokens.size());
+        size_t copy_size = std::min(out_tokens_size, static_cast<int64_t>(tokens.size()));
         std::copy(tokens.begin(), tokens.begin() + copy_size, out_tokens);
         return copy_size;
     } else {
@@ -1069,11 +1069,11 @@ wooly_llama_make_embeddings(
     int32_t batch_size,
     int32_t pooling_type,
     int32_t embd_normalize,
-    size_t token_array_count,
+    int64_t token_array_count,
     int32_t** token_arrays,
-    size_t* token_array_sizes,
+    int64_t* token_array_sizes,
     float* output_embeddings,
-    size_t output_embeddings_size)
+    int64_t output_embeddings_size)
 {
     // count number of embeddings; if no pooling, then each token has its own
     // embedding vector, otherwise all of the embeddings for a given prompt are processed and

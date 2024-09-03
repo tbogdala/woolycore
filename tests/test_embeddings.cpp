@@ -233,10 +233,10 @@ void test_embeddings() {
     // we're gonna pass in the pointers to the tokenized arrays, so create that...
     // we can't use STL collections with a C-compatible API so we have to make a copy into temporary buffers
     std::vector<int32_t*> token_array_ptrs;
-    std::vector<size_t> token_array_sizes;
+    std::vector<int64_t> token_array_sizes;
     for (size_t k = 0 ; k < tokenized_prompts.size(); ++k) {
         auto token_array = tokenized_prompts[k];
-        auto token_array_size = token_array.size();
+        auto token_array_size = static_cast<int64_t>(token_array.size());
         
         int32_t* token_array_buffer = static_cast<int32_t*>(malloc(sizeof(int32_t) * token_array_size));
         std::copy(token_array.begin(), token_array.end(), token_array_buffer);

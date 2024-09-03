@@ -235,14 +235,14 @@ wooly_llama_n_embd(
 // will copy at most `out_tokens_size` tokens to the `out_tokens` buffer
 // and return total number of tokens copied. if `out_tokens` is null,
 // the function simply returns the number of tokens for the `text`.
-LLAMA_API size_t
+LLAMA_API int64_t
 wooly_llama_tokenize(
     void *llama_model_ptr, 
     const char* text,
     bool add_special,
     bool parse_special,
     int32_t* out_tokens,
-    size_t out_tokens_size
+    int64_t out_tokens_size
 );
 
 // calculates embeddings for the given token arrays. 
@@ -281,11 +281,11 @@ wooly_llama_make_embeddings(
     int32_t batch_size,
     int32_t pooling_type,
     int32_t embd_normalize,
-    size_t token_array_count,
+    int64_t token_array_count,
     int32_t** token_arrays,
-    size_t* token_array_sizes,
+    int64_t* token_array_sizes,
     float* output_embeddings,
-    size_t output_embeddings_size
+    int64_t output_embeddings_size
 );
 
 #ifdef __cplusplus
