@@ -62,9 +62,19 @@ void test_predictions() {
     params.antiprompts = antiprompts_array;
     params.prompt = "<|user|>\nWrite the start to the next movie collaboration between Quentin Tarantino and Robert Rodriguez.<|end|>\n<|assistant|>\n";
 
-    // allocate an output buffer for the text prediction
-    char *prediction = malloc((params.n_predict+1) * 4);
-    wooly_predict_result results = wooly_predict(params, loaded_model.ctx, loaded_model.model, false, prediction, NULL, NULL);
+    // allocate an output buffer for the text prediction using an overboard 10-characters-per-token
+    // estimate and a worst case scenario of 4 characters per utf-8 predicted.
+    size_t prediction_buffer_size = (params.n_predict+1) * 4 * 10;
+    char *prediction = malloc(prediction_buffer_size);
+    wooly_predict_result results = wooly_predict(
+        params, 
+        loaded_model.ctx, 
+        loaded_model.model, 
+        false, 
+        prediction, 
+        prediction_buffer_size, 
+        NULL, 
+        NULL);
 
     // ensure the result code was 0 to indicate no errors happened and print out prediction and timing info
     TEST_ASSERT_EQUAL(0, results.result);
@@ -77,14 +87,22 @@ void test_predictions() {
            results.n_p_eval,
            results.t_p_eval_ms,
            1e3 / results.t_p_eval_ms * results.n_p_eval);
-
+    
     /* ===== Prompt cache test ===== */
 
     // change only the seed and use the prompt_cache from the results above. this should cause the prediction
     // to skip the prompt processing and head straight for text prediction. additionally we use the callback
     // here so text will be output realtime to stdout.
     params.seed = 1337;
-    results = wooly_predict(params, loaded_model.ctx, loaded_model.model, false, prediction, results.prompt_cache, predict_callback);
+    results = wooly_predict(
+        params, 
+        loaded_model.ctx, 
+        loaded_model.model, 
+        false, 
+        prediction, 
+        prediction_buffer_size, 
+        results.prompt_cache, 
+        predict_callback);
 
     // ensure no errors happened and ensure the number of prompt tokens processed is 0 since we used the prompt_cache
     TEST_ASSERT_EQUAL(0, results.result);
@@ -97,7 +115,6 @@ void test_predictions() {
            results.n_p_eval,
            results.t_p_eval_ms,
            1e3 / results.t_p_eval_ms * results.n_p_eval);
-
     free(prediction);
 
     /* ===== Grammar test ===== */
@@ -120,13 +137,22 @@ void test_predictions() {
     // set the number of tokens to predict to -1 so that it goes until the job's done; that does impact
     // how big we want to allocate our prediction buffer, so that will be big enough to hold the whole context
     // as a worst case.
-    prediction = malloc(context_params.n_ctx * 4);
+    size_t grammar_prediction_size = context_params.n_ctx * 4 * 10;
+    char* grammar_prediction = malloc(grammar_prediction_size);
     params.n_predict = -1;
     params.prompt = "<|user|>\nReturn a JSON object that describes an object in a fictional Dark Souls game. The returned JSON object should have 'Title' and 'Description' fields that define the item in the game. Make sure to write the item lore in the style of Fromsoft and thier Dark Souls series of games: there should be over-the-top naming of fantastically gross monsters and tragic historical events from the world, all with a very nihilistic feel.<|end|>\n<|assistant|>\n";
     
     // set the grammar field of the structure to the grammar file we loaded to trigger llama.cpp's grammar support
     params.grammar = gbnf_string;
-    results = wooly_predict(params, loaded_model.ctx, loaded_model.model, false, prediction, NULL, predict_callback);
+    results = wooly_predict(
+        params, 
+        loaded_model.ctx, 
+        loaded_model.model, 
+        false, 
+        grammar_prediction, 
+        grammar_prediction_size,
+        NULL, 
+        predict_callback);
     
     // ensure no errors happened and make sure the prompt was processed
     TEST_ASSERT_EQUAL(0, results.result);
@@ -141,7 +167,7 @@ void test_predictions() {
            1e3 / results.t_p_eval_ms * results.n_p_eval);
 
     free(gbnf_string);
-    free(prediction);
+    free(grammar_prediction);
 }
 
 int main() {

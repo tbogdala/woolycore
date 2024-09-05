@@ -31,7 +31,7 @@ static void batch_decode_embeddings(llama_context * ctx, llama_batch & batch, fl
     llama_kv_cache_clear(ctx);
 
     // run model
-    fprintf(stderr, "%s: n_tokens = %d, n_seq = %d\n", __func__, batch.n_tokens, n_seq);
+    //fprintf(stderr, "%s: n_tokens = %d, n_seq = %d\n", __func__, batch.n_tokens, n_seq);
     if (llama_model_has_encoder(model) && !llama_model_has_decoder(model)) {
         // encoder-only model
         if (llama_encode(ctx, batch) < 0) {
@@ -172,6 +172,34 @@ void test_embeddings() {
         token_vector.resize(num_of_tokens);
         std::copy(token_buffer, token_buffer + num_of_tokens, token_vector.begin());
         tokenized_prompts.push_back(token_vector);
+
+        // do a detokenize pass on the prompt tokens to test that API call
+        size_t detoken_buffer_size = context_params.n_ctx;
+        char* detoken_buffer = static_cast<char*>(malloc(detoken_buffer_size));
+        int64_t detoken_count = wooly_llama_detokenize(
+            loaded_model.ctx, 
+            false, 
+            token_buffer, 
+            num_of_tokens, 
+            detoken_buffer,
+            detoken_buffer_size);
+        printf("\tDetokenized: %s\n", detoken_buffer);
+
+        // testing the equality of the detokenized text isn't uniformly supported. for example,
+        // the nomic embedding model this test was designed originally to use does not round
+        // trip the tokens to the exact same text. But if you run this test using Llama-3.1,
+        // you'll see that the text round trips perfectly. for that reason, the test is
+        // currently disabled.
+        //
+        // bool detoken_is_same = std::equal(prompt.begin(), prompt.end(), detoken_buffer, [](char c1, char c2) {
+        //     return std::toupper(c1) == std::toupper(c2);
+        // });
+        // if (detoken_count != prompt.length()) {
+        //     detoken_is_same = false;
+        // }
+        // TEST_ASSERT_TRUE(detoken_is_same);
+
+        free(detoken_buffer);
     }
 
     // setup the batch process for the raw llama API
@@ -197,7 +225,6 @@ void test_embeddings() {
     float * emb = embeddings.data();
 
     // break into batches
-    //FIXME: wrap this
     struct llama_batch batch = llama_batch_init(context_params.n_batch, 0, 1);
     int e = 0; // number of embeddings already stored
     int s = 0; // number of prompts in current batch

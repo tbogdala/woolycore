@@ -195,7 +195,8 @@ wooly_new_gpt_params();
 
 // run a text prediction base on the `simple_params` passed in, which is a reduced
 // set of parameters upstream llama.cpp uses. `out_result` is a `char` buffer that
-// should be large enough to hold the generated output. `prompt_cache_ptr` is a 
+// should be large enough to hold the generated output, and the maximum size for
+// the buffer should be passed as `out_result_size`. `prompt_cache_ptr` is a 
 // pointer to the last used prompt cache from a previous `wooly_predict_result` and
 // can be NULL if no cache is to be used; using the cache saves the function from
 // having to process the same prompt again.
@@ -206,6 +207,7 @@ wooly_predict(
     void *llama_model_ptr, 
     bool include_specials, 
     char *out_result, 
+    int64_t out_result_size,
     void* prompt_cache_ptr, 
     wooly_token_update_callback token_cb);    
 
@@ -244,6 +246,21 @@ wooly_llama_tokenize(
     int32_t* out_tokens,
     int64_t out_tokens_size
 );
+
+// detokenizes an array of tokens passed in to a string in the `out_result`
+// memory buffer. if `render_specials` is true, special tokens will get
+// turned into text as well. returns the number of characters written
+// to the `out_result` buffer, or a negative number which the absolute
+// value of is the buffer size needed to hold the result.
+LLAMA_API int64_t 
+wooly_llama_detokenize(
+    void *llama_context_ptr, 
+    bool render_specials, 
+    int32_t* tokens,
+    int64_t tokens_size,
+    char *out_result, 
+    int64_t out_result_size);    
+
 
 // calculates embeddings for the given token arrays. 
 //

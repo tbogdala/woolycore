@@ -159,6 +159,7 @@ wooly_predict(
     void *llama_model_ptr, 
     bool include_specials, 
     char *out_result, 
+    int64_t out_result_size,
     void* prompt_cache_ptr, 
     wooly_token_update_callback token_cb) 
 {
@@ -736,7 +737,9 @@ wooly_predict(
     return_value.n_p_eval = timings.n_p_eval;
     return_value.n_eval = timings.n_eval;
 
-    strcpy(out_result, res.c_str());
+    // copy at most out_result_size characters.
+    strncpy(out_result, res.c_str(), out_result_size - 1);
+    out_result[out_result_size-1] = 0;
 
     if (ctx_guidance) { llama_free(ctx_guidance); }
     llama_sampling_free(ctx_sampling);
@@ -1007,6 +1010,34 @@ wooly_llama_tokenize(
     }
 }
 
+int64_t 
+wooly_llama_detokenize(
+    void *llama_context_ptr, 
+    bool render_specials, 
+    int32_t* tokens,
+    int64_t tokens_size,
+    char *out_result, 
+    int64_t out_result_size)
+{
+    // build the STL vector out of the input buffer for the tokens
+    std::vector<int32_t> input_tokens(tokens, tokens + tokens_size);
+        
+    // render the tokens out to the string
+    auto string = llama_detokenize(
+        static_cast<llama_context*>(llama_context_ptr), 
+        input_tokens, 
+        render_specials);
+
+    // make sure we have enough space in the output buffer
+    if (string.length() + 1 > out_result_size) {
+        return -(string.length() + 1);
+    }
+
+    // copy the result and then return the length of the string
+    std::strcpy(out_result, string.c_str());
+    return string.length();
+}
+
 // yoinked from the embedding.cpp example in upstream llama.cpp
 static void batch_add_seq(llama_batch & batch, const std::vector<int32_t> & tokens, llama_seq_id seq_id) {
     size_t n_tokens = tokens.size();
@@ -1024,7 +1055,7 @@ static void batch_decode_embeddings(llama_context * ctx, llama_batch & batch, fl
     llama_kv_cache_clear(ctx);
 
     // run model
-    fprintf(stderr, "%s: n_tokens = %d, n_seq = %d\n", __func__, batch.n_tokens, n_seq);
+    //fprintf(stderr, "%s: n_tokens = %d, n_seq = %d\n", __func__, batch.n_tokens, n_seq);
     if (llama_model_has_encoder(model) && !llama_model_has_decoder(model)) {
         // encoder-only model
         if (llama_encode(ctx, batch) < 0) {
