@@ -836,8 +836,14 @@ fill_gpt_params_from_simple(
 
     output->seed = simple->seed;
     output->sparams.seed = simple->seed;
-    output->cpuparams.n_threads = simple->n_threads > 0 ? simple->n_threads : cpu_get_num_math();
-    output->cpuparams_batch.n_threads = simple->n_threads_batch > 0 ? simple->n_threads_batch : output->cpuparams.n_threads;
+    output->cpuparams.n_threads = simple->n_threads;
+    if (output->cpuparams.n_threads < 1) {
+        output->cpuparams.n_threads = cpu_get_num_math();
+    }
+    output->cpuparams_batch.n_threads = simple->n_threads_batch;
+    if (output->cpuparams_batch.n_threads < 1) {
+        output->cpuparams_batch.n_threads = output->cpuparams.n_threads;
+    }
     output->n_predict = simple->n_predict;
     output->n_ctx = simple->n_ctx;
     output->n_batch = simple->n_batch;
@@ -960,7 +966,13 @@ conv_wooly_to_llama_context_params(wooly_llama_context_params wooly_params)
     params.n_ubatch = wooly_params.n_ubatch;
     params.n_seq_max = wooly_params.n_seq_max;
     params.n_threads = wooly_params.n_threads;
+    if (params.n_threads < 1) {
+        params.n_threads = cpu_get_num_math();
+    }
     params.n_threads_batch = wooly_params.n_threads_batch;
+    if (params.n_threads_batch < 1) {
+        params.n_threads_batch =  params.n_threads;
+    }
     params.rope_scaling_type = (enum llama_rope_scaling_type) wooly_params.rope_scaling_type;
     params.pooling_type = (enum llama_pooling_type) wooly_params.pooling_type;
     params.rope_freq_base = wooly_params.rope_freq_base;

@@ -31,6 +31,7 @@ void test_predictions() {
     model_params.n_gpu_layers = 100;
     wooly_llama_context_params context_params = wooly_get_default_llama_context_params();
     context_params.seed = 42;
+    context_params.n_threads = -1;
     context_params.n_ctx = 1024 * 2;
 
     // get the model filepath from the environment variable and load it up
@@ -44,7 +45,7 @@ void test_predictions() {
     // setup the text prediction parameters
     struct wooly_gpt_params params = wooly_new_gpt_params();
     params.seed = 42;
-    params.n_threads = 4;
+    params.n_threads = -1;
     params.n_predict = 100;
     params.temp = 0.1;
     params.top_k = 1;
@@ -140,6 +141,7 @@ void test_predictions() {
     size_t grammar_prediction_size = context_params.n_ctx * 4 * 10;
     char* grammar_prediction = malloc(grammar_prediction_size);
     params.n_predict = -1;
+    params.n_threads = 4; // test a manually set thread count
     params.prompt = "<|user|>\nReturn a JSON object that describes an object in a fictional Dark Souls game. The returned JSON object should have 'Title' and 'Description' fields that define the item in the game. Make sure to write the item lore in the style of Fromsoft and thier Dark Souls series of games: there should be over-the-top naming of fantastically gross monsters and tragic historical events from the world, all with a very nihilistic feel.<|end|>\n<|assistant|>\n";
     
     // set the grammar field of the structure to the grammar file we loaded to trigger llama.cpp's grammar support
