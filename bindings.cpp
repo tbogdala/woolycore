@@ -7,6 +7,7 @@
 #include <regex>
 #include <fstream>
 #include <string>
+#include <cstring>
 #include <vector>
 
 // internal functions headers
