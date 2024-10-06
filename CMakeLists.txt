@@ -5,6 +5,11 @@ set(LLAMA_BUILD_TESTS Off)
 set(LLAMA_BUILD_EXAMPLES Off)
 set(LLAMA_BUILD_SERVER Off)
 
+if(WOOLY_DEBUG)
+    add_definitions(-DWOOLY_DEBUG)
+endif()
+
+
 # include upstream llamacpp options
 add_subdirectory("llama.cpp")
 

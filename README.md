@@ -4,14 +4,12 @@ A thin C wrapper around the [llama.cpp library](https://github.com/ggerganov/lla
 API that provides a surface to build FFI libraries on top of for other languages.
 
 Upstream llama.cpp is pinned to commit 
-[EA5D747](https://github.com/ggerganov/llama.cpp/releases/tag/b3649)
-from Aug 31, 2024.
-
-At present, it is in development and the API is unstable, though no breaking changes are envisioned. 
+[D5CB868](https://github.com/ggerganov/llama.cpp/releases/tag/b3889)
+from Oct 6, 2024.
 
 Supported Operating Systems: Windows, MacOS, Linux, iOS, Android 
 
-Note: Android support appears to be non-accelerated.
+Note: Android support is non-GPU accelerated.
 
 
 ## List of programming language integrations
@@ -67,6 +65,14 @@ cmake -B build -DGGML_CUDA=On -DCMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=TRUE -DBUILD_SH
 cmake --build build --config Release
 ```
 
+### Debugging
+
+When loading a model with `wooly_load_model()`, setting the `silent_llama` parameter to true will attempt
+to silence all output. When `silent_llama` is false, it will generate 'normal' level verbosity
+log output. *However*, if you want extra debugging log output, you can configure the project
+with an extra flag called `WOOLY_DEBUG` (e.g. `cmake -B build -DWOOLY_DEBUG=1`). This will
+produce extra log information.
+
 
 ## Unit tests
 
@@ -97,6 +103,13 @@ This project uses submodules for upstream projects so make sure to update with a
 ```bash
 git pull --recurse-submodules
 ```
+
+
+## API Changes
+
+See the [API_CHANGES](API_CHANGES.md) document for a full listing of changes to the woolycore
+API.
+
 
 ### Developer Notes
 

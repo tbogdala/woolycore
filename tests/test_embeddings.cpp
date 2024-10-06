@@ -104,7 +104,6 @@ void test_embeddings() {
     wooly_llama_model_params model_params = wooly_get_default_llama_model_params();
     model_params.n_gpu_layers = 100;
     wooly_llama_context_params context_params = wooly_get_default_llama_context_params();
-    context_params.seed = 42;
     context_params.n_ctx = 2048; // make configurable - depends on emb?
     context_params.n_batch = context_params.n_ctx; 
     context_params.n_ubatch = context_params.n_batch; // must be the same for non-causal models

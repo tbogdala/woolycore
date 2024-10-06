@@ -40,11 +40,9 @@ typedef struct wooly_predict_result {
     double t_start_ms;
     double t_end_ms;
     double t_load_ms;
-    double t_sample_ms;
     double t_p_eval_ms;
     double t_eval_ms;
 
-    int32_t n_sample;
     int32_t n_p_eval;
     int n_eval;
 } wooly_predict_result;
@@ -79,7 +77,6 @@ typedef struct wooly_llama_model_params {
 // of the wrapper library as well as for ease of dynamic binding - this library
 // can *assure* the same ordering as expected.
 typedef struct wooly_llama_context_params {
-    uint32_t seed;              // RNG seed, -1 for random
     uint32_t n_ctx;             // text context, 0 = from model
     uint32_t n_batch;           // logical maximum batch size that can be submitted to llama_decode
     uint32_t n_ubatch;          // physical maximum batch size
@@ -175,6 +172,8 @@ typedef bool (*wooly_token_update_callback)(const char *token_str);
 // loads a GGUF compatible model from the provided `fname` filepath, using the
 // parameters provided to control features. if `silent_llama` is set to true,
 // then attempts will be made to curb all output from the upstream llama.cpp library.
+// if `silent_llama` is false, then 'normal' log level output is generated unless
+// WOOLY_DEBUG is defined - which will cause maximum verbosity log output.
 LLAMA_API wooly_load_model_result 
 wooly_load_model(
     const char *fname, 

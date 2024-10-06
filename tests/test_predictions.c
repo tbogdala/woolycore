@@ -30,7 +30,6 @@ void test_predictions() {
     wooly_llama_model_params model_params = wooly_get_default_llama_model_params();
     model_params.n_gpu_layers = 100;
     wooly_llama_context_params context_params = wooly_get_default_llama_context_params();
-    context_params.seed = 42;
     context_params.n_threads = -1;
     context_params.n_ctx = 1024 * 2;
 
@@ -107,7 +106,7 @@ void test_predictions() {
 
     // ensure no errors happened and ensure the number of prompt tokens processed is 0 since we used the prompt_cache
     TEST_ASSERT_EQUAL(0, results.result);
-    TEST_ASSERT_EQUAL(0, results.n_p_eval);
+    TEST_ASSERT_EQUAL(1, results.n_p_eval); // upstream now returns a minimum value of 1...
     TEST_ASSERT_GREATER_OR_EQUAL(1, results.n_eval);
     printf("\n\nTiming Data: %d tokens total in %.2f ms (%.2f T/s) ; %d prompt tokens in %.2f ms (%.2f T/s)\n\n",
            results.n_eval,
