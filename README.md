@@ -51,7 +51,7 @@ For systems that support CUDA acceleration, like Linux, you'll need to enable it
 as follows:
 
 ```bash
-cmake -B build -DGGML_CUDA=On -DCMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=TRUE -DBUILD_SHARED_LIBS=TRUE
+cmake -B build -DGGML_CUDA=On 
 cmake --build build --config Release
 ```
 
@@ -61,9 +61,23 @@ need to be able to find the `build/bin/Release/ggml.dll` and `build/bin/Release/
 at runtime when deployed, so copy the three dlls to the same directory.)
 
 ```bash
-cmake -B build -DGGML_CUDA=On -DCMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=TRUE -DBUILD_SHARED_LIBS=TRUE
+cmake -B build -DGGML_CUDA=On -DCMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=TRUE 
 cmake --build build --config Release
 ```
+
+### Static vs Shared
+
+By default, *shared* versions of the library are built. This is a good approach, particularly during
+development. However, you may find yourself in a position where *static* versions - ones that can
+be used to compile everything into a single executable. For this, you can run the configure script
+with `WOOLY_STATIC` enabled. For example, something like this:
+
+```bash
+cmake -B build -DGGML_CUDA=On -DWOOLY_STATIC=On
+```
+
+Keep in mind that the test excutables with CUDA linked in statically take about a gigabyte of storage each.
+
 
 ### Debugging
 

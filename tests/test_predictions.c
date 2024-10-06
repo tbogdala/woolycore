@@ -35,7 +35,7 @@ void test_predictions() {
 
     // get the model filepath from the environment variable and load it up
     const char *model_filepath = get_test_model_path();
-    wooly_load_model_result loaded_model = wooly_load_model(model_filepath, model_params, context_params, true);
+    wooly_load_model_result loaded_model = wooly_load_model(model_filepath, model_params, context_params, false);
 
     // check to make sure we got pointers for the model and the context
     TEST_ASSERT_NOT_NULL(loaded_model.model);

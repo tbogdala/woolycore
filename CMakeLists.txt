@@ -5,6 +5,25 @@ set(LLAMA_BUILD_TESTS Off)
 set(LLAMA_BUILD_EXAMPLES Off)
 set(LLAMA_BUILD_SERVER Off)
 
+option(WOOLY_STATIC "Build static library instead of shared" OFF)
+
+if(WOOLY_STATIC) 
+    set(BUILD_SHARED_LIBS Off)
+    set(GGML_STATIC On)
+
+    add_library(woolycore STATIC
+        bindings.cpp
+    )
+
+else()
+    set(BUILD_SHARED_LIBS On)
+    set(GGML_STATIC Off)
+
+    add_library(woolycore SHARED
+        bindings.cpp
+    )
+endif()
+
 if(WOOLY_DEBUG)
     add_definitions(-DWOOLY_DEBUG)
 endif()
@@ -13,25 +32,12 @@ endif()
 # include upstream llamacpp options
 add_subdirectory("llama.cpp")
 
-add_library(woolycore SHARED
-    bindings.cpp
-    )
-
-# add_library(woolycore_static STATIC
-#     bindings.cpp
-#     )
-
 target_include_directories(woolycore PUBLIC "llama.cpp")
 target_compile_features(woolycore PRIVATE cxx_std_11) # don't bump
 target_link_libraries(woolycore PRIVATE common)
 
-# target_include_directories(woolycore_static PUBLIC "llama.cpp")
-# target_compile_features(woolycore_static PRIVATE cxx_std_11) # don't bump
-# target_link_libraries(woolycore_static PRIVATE common llama)
-
 
 # Unit testing
-
 add_subdirectory(unity)
 
 add_executable(test_predictions tests/test_predictions.c)
@@ -39,7 +45,6 @@ target_include_directories(test_predictions PRIVATE
     "llama.cpp/include"
     "llama.cpp/ggml/include"
 )
-target_link_libraries(test_predictions PRIVATE woolycore unity)
 
 add_executable(test_embeddings tests/test_embeddings.cpp)
 target_include_directories(test_embeddings PRIVATE 
@@ -48,4 +53,7 @@ target_include_directories(test_embeddings PRIVATE
     "llama.cpp/common"
 )
 target_compile_features(test_embeddings PRIVATE cxx_std_11)
-target_link_libraries(test_embeddings PRIVATE woolycore common llama unity)
+
+
+target_link_libraries(test_predictions PRIVATE woolycore unity)
+target_link_libraries(test_embeddings PRIVATE woolycore unity common llama )
