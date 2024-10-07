@@ -14,7 +14,6 @@ if(WOOLY_STATIC)
     add_library(woolycore STATIC
         bindings.cpp
     )
-
 else()
     set(BUILD_SHARED_LIBS On)
     set(GGML_STATIC Off)
@@ -22,6 +21,8 @@ else()
     add_library(woolycore SHARED
         bindings.cpp
     )
+
+    install(TARGETS woolycore LIBRARY)
 endif()
 
 if(WOOLY_DEBUG)
@@ -56,4 +57,4 @@ target_compile_features(test_embeddings PRIVATE cxx_std_11)
 
 
 target_link_libraries(test_predictions PRIVATE woolycore unity)
-target_link_libraries(test_embeddings PRIVATE woolycore unity common llama )
+target_link_libraries(test_embeddings PRIVATE woolycore unity common llama)

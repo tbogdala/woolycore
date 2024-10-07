@@ -76,7 +76,9 @@ with `WOOLY_STATIC` enabled. For example, something like this:
 cmake -B build -DGGML_CUDA=On -DWOOLY_STATIC=On
 ```
 
-Keep in mind that the test excutables with CUDA linked in statically take about a gigabyte of storage each.
+Keep in mind that the test executables with CUDA linked in statically take about a gigabyte of storage each.
+Also, the current solution **does not** work for Windows builds due to MSVC behaving differently. Fixes
+for this particular problem would be welcome.
 
 
 ### Debugging
@@ -135,5 +137,3 @@ API.
 ### TODO
 
 * Reenable some advanced sampling features again like logit biases.
-* Missing calls to just tokenize text and to pull embeddings out from text.
-* Maybe a dynamic LoRA layer, trained every time enough tokens fill up the context space, approx.
