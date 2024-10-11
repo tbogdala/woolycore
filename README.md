@@ -30,7 +30,9 @@ MIT licensed, like the core upstream `llama.cpp` it wraps. See `LICENSE` for det
 
 * Basic samplers of llama.cpp, including: temp, top-k, top-p, min-p, tail free sampling, locally typical sampling, mirostat.
 * Support for llama.cpp's BNF-like grammar rules for sampling.
-* Ability to cache the processed prompt data in memory so that it can be reused to speed up regeneration using the exact same prompt.
+* Ability to cache the current prediction state which can be used to cache processed prompt data in memory 
+  so that it can be reused to speed up regeneration using the exact same prompt. It can also be used to continue
+  predictions that have frozen
 * Tokenize text or just get the number of tokens for a given text string.
 * Generate embeddings using models such as `nomic-ai/nomic-embed-text-v1.5-GGUF` on HuggingFace in a batched process.
 
@@ -80,6 +82,8 @@ Keep in mind that the test executables with CUDA linked in statically take about
 Also, the current solution **does not** work for Windows builds due to MSVC behaving differently. Fixes
 for this particular problem would be welcome.
 
+If you wish to not build the unit tests, pass `-DWOOLY_TESTS=Off` to cmake.
+
 
 ### Debugging
 
@@ -105,6 +109,7 @@ In a unix environment, that means you can do something like this to run the unit
 ```bash
 export WOOLY_TEST_MODEL_FILE=models/example-llama-3-8b.gguf
 ./build/test_predictions
+./build/test_prediction_steps
 
 # note, currently the unit test uses a 2048 sized batch size targetted towards this particular model
 export WOOLY_TEST_EMB_MODEL_FILE=models/nomic-embed-text-v1.5.Q8_0.gguf
@@ -132,6 +137,12 @@ API.
 *   This library creates its own version of the structures to avoid failure cases where upstream
     llama.cpp structs have C++ members and cannot be wrapped automatically by tooling. While 
     inconvenient, I chose to do that over an opaque pointer and getter/setter functions.
+
+*   The `void*` parameters in the public functions of `bindings.h` are `void` so that languages
+    that can automatically create bindings on types don't try to dig further and require
+    the processing of types defined in llama.cpp - because some of them will eventually include
+    c++ members and those cannot be wrapped. This is unfortunate, but necessary, so care must
+    be taken to provide the right pointers to the functions.
 
 
 ### TODO

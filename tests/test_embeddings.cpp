@@ -8,8 +8,16 @@
 #include "common.h"
 #include "llama.h"
 
-// This test covers the tokenization functions of woolycore, comparing the generated
-// data against what is returned by the raw llama functions.
+/*  =================================
+
+    This test covers creating embeddings using specialized embedding models and is particuarlly
+    tuned for `nomic-embed-text-v1.5`. It creates a series of embeddings and then calculates
+    cosine similarities between a few example sentences and prints out the results.
+
+    Additionally, this test covers the tokenization functions of woolycore, comparing the generated
+    data against what is returned by the raw llama functions.
+
+    =================================   */
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -326,6 +334,7 @@ void test_embeddings() {
 
 
     llama_batch_free(batch);
+    wooly_free_model(loaded_model.ctx, loaded_model.model);
 }
 
 int main() {

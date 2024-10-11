@@ -4,6 +4,16 @@
 #include "unity.h"
 #include "../bindings.h" 
 
+/*  =================================
+
+    This unit test is designed to basic text prediction using the `wooly_predict()` high
+    level function. It also tests caching the prompt so that additional predictions
+    can be made using that same prompt without having to ingest the prompt data again.
+    After that, the unit test does a basic grammer controlled sampling test based
+    on the JSON grammar included in upstream llama.cpp.
+
+    =================================   */
+
 void setUp(void) {}
 void tearDown(void) {}
 
@@ -169,6 +179,7 @@ void test_predictions() {
 
     free(gbnf_string);
     free(grammar_prediction);
+    wooly_free_model(loaded_model.ctx, loaded_model.model);
 }
 
 int main() {

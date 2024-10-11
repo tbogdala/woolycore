@@ -5,7 +5,9 @@ set(LLAMA_BUILD_TESTS Off)
 set(LLAMA_BUILD_EXAMPLES Off)
 set(LLAMA_BUILD_SERVER Off)
 
+option(WOOLY_DEBUG "Enable extra debugging output while running" Off)
 option(WOOLY_STATIC "Build static library instead of shared" OFF)
+option(WOOLY_TESTS "Build unit tests" On)
 
 if(WOOLY_STATIC) 
     set(BUILD_SHARED_LIBS Off)
@@ -39,22 +41,32 @@ target_link_libraries(woolycore PRIVATE common)
 
 
 # Unit testing
-add_subdirectory(unity)
+if(WOOLY_TESTS)
+    add_subdirectory(unity)
 
-add_executable(test_predictions tests/test_predictions.c)
-target_include_directories(test_predictions PRIVATE 
-    "llama.cpp/include"
-    "llama.cpp/ggml/include"
-)
+    add_executable(test_predictions tests/test_predictions.c)
+    target_include_directories(test_predictions PRIVATE 
+        "llama.cpp/include"
+        "llama.cpp/ggml/include"
+    )
 
-add_executable(test_embeddings tests/test_embeddings.cpp)
-target_include_directories(test_embeddings PRIVATE 
-    "llama.cpp/include"
-    "llama.cpp/ggml/include"
-    "llama.cpp/common"
-)
-target_compile_features(test_embeddings PRIVATE cxx_std_11)
+    add_executable(test_embeddings tests/test_embeddings.cpp)
+    target_include_directories(test_embeddings PRIVATE 
+        "llama.cpp/include"
+        "llama.cpp/ggml/include"
+        "llama.cpp/common"
+    )
+    target_compile_features(test_embeddings PRIVATE cxx_std_11)
 
+    add_executable(test_prediction_steps tests/test_prediction_steps.c)
+    target_include_directories(test_prediction_steps PRIVATE 
+        "llama.cpp/include"
+        "llama.cpp/ggml/include"
+        "llama.cpp/common"
+    )
+    target_compile_features(test_prediction_steps PRIVATE cxx_std_11)
 
-target_link_libraries(test_predictions PRIVATE woolycore unity)
-target_link_libraries(test_embeddings PRIVATE woolycore unity common llama)
+    target_link_libraries(test_predictions PRIVATE woolycore unity)
+    target_link_libraries(test_prediction_steps PRIVATE woolycore unity)
+    target_link_libraries(test_embeddings PRIVATE woolycore unity common llama)
+endif()

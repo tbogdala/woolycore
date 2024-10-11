@@ -186,6 +186,355 @@ wooly_free_model(
     }
 }
 
+
+wooly_process_prompt_results 
+wooly_process_prompt(
+    wooly_gpt_params *simple_params, 
+    void *llama_context_ptr, 
+    void *llama_model_ptr) 
+{
+    wooly_process_prompt_results return_value;
+    llama_context *ctx = static_cast<llama_context *>(llama_context_ptr); 
+    llama_model *model = static_cast<llama_model *>(llama_model_ptr);
+
+    gpt_params params;
+    fill_gpt_params_from_simple(simple_params, &params);
+
+
+    // Do a basic set of warnings based on incoming parameters
+    const int n_ctx_train = llama_n_ctx_train(model);
+    const int n_ctx = llama_n_ctx(ctx);
+    if (n_ctx > n_ctx_train) {
+        LOG_WRN("%s: warning: model was trained on only %d context tokens (%d specified)\n", __func__, n_ctx_train, n_ctx);
+    }
+    if (params.n_ctx != 0 && params.n_ctx < 8) {
+        LOG_WRN("%s: warning: minimum context size is 8, using minimum size.\n", __func__);
+        params.n_ctx = 8;
+    }
+    if (params.rope_freq_base != 0.0) {
+        LOG_WRN("%s: warning: changing RoPE frequency base to %g.\n", __func__, params.rope_freq_base);
+    }
+    if (params.rope_freq_scale != 0.0) {
+        LOG_WRN("%s: warning: scaling RoPE frequency by %g.\n", __func__, params.rope_freq_scale);
+    }
+
+    // print system information
+    {
+        LOG_INF("\n");
+        LOG_INF("%s\n", gpt_params_get_system_info(params).c_str());
+        LOG_INF("\n");
+    }
+
+
+    // Reset KV Cache and timing data
+    llama_kv_cache_clear(ctx);
+    llama_perf_context_reset(ctx);
+
+
+    // Setup the threadpool for this processing task
+    LOG_INF("%s: llama threadpool init = n_threads = %d\n", __func__, (int) params.cpuparams.n_threads);
+    struct ggml_threadpool_params tpp_batch =
+            ggml_threadpool_params_from_cpu_params(params.cpuparams_batch);
+    struct ggml_threadpool_params tpp =
+            ggml_threadpool_params_from_cpu_params(params.cpuparams);
+
+    set_process_priority(params.cpuparams.priority);
+
+    struct ggml_threadpool * threadpool_batch = NULL;
+    if (!ggml_threadpool_params_match(&tpp, &tpp_batch)) {
+        threadpool_batch = ggml_threadpool_new(&tpp_batch);
+        if (!threadpool_batch) {
+            LOG_ERR("%s: batch threadpool create failed : n_threads %d\n", __func__, tpp_batch.n_threads);
+            return_value.result = -1;
+            return return_value;
+        }
+
+        // Start the non-batch threadpool in the paused state
+        tpp.paused = true;
+    }
+
+    struct ggml_threadpool * threadpool = ggml_threadpool_new(&tpp);
+    if (!threadpool) {
+        LOG_ERR("%s: threadpool create failed : n_threads %d\n", __func__, tpp.n_threads);
+        return_value.result = -2;
+        return return_value;
+    }
+    llama_attach_threadpool(ctx, threadpool, threadpool_batch);
+
+
+    // should we add the bos?
+    const bool add_bos = llama_add_bos_token(model);
+    if (!llama_model_has_encoder(model)) {
+        GGML_ASSERT(!llama_add_eos_token(model));
+    }
+    LOG_DBG("n_ctx: %d, add_bos: %d\n", n_ctx, add_bos);
+
+
+    // tokenize the prompt (`embd_inp` in llamacpp samples)
+    std::vector<llama_token> prompt_tokens;
+    if (!params.prompt.empty()) {
+        LOG_DBG("tokenize the prompt\n");
+        prompt_tokens = ::llama_tokenize(ctx, params.prompt, add_bos, true);
+        LOG_DBG("prompt: \"%s\"\n", params.prompt.c_str());
+        LOG_DBG("tokens: %s\n", string_from(ctx, prompt_tokens).c_str());
+    }
+    if (prompt_tokens.empty()) {
+        // The model needs something to start with, so if we're empty
+        // add the bos if the model supports it. Otherwise we start
+        // with a newline character, but this should be considered a 
+        // fallback and should be fixed in the calling client code.
+        if (add_bos) {
+            prompt_tokens.push_back(llama_token_bos(model));
+            LOG_WRN("%s: prompt_tokens was considered empty and bos was added: %s\n", 
+                __func__, string_from(ctx, prompt_tokens).c_str());
+        } else {
+            LOG_ERR("%s: error: input is empty and bos isn't supported so a newline will be used!\n", __func__);
+            prompt_tokens = ::llama_tokenize(ctx, "\n", add_bos, true);
+            if (prompt_tokens.empty()) {
+                LOG_ERR("%s: error: input is empty and failed to tokenize newline!\n", __func__);
+                return_value.result = -3;
+                return return_value;
+            }
+        }
+    }
+
+    const int prompt_token_limit = n_ctx - 4;
+    if ((int) prompt_tokens.size() > prompt_token_limit) {
+        LOG_ERR("%s: prompt is too long (%d tokens, max %d)\n", 
+            __func__, (int) prompt_tokens.size(), prompt_token_limit);
+        return_value.result = -4;
+        return return_value;
+    }
+
+#ifdef WOOLY_DEBUG
+        LOG_DBG("%s: prompt: '%s'\n", __func__, params.prompt.c_str());
+        LOG_DBG("%s: number of tokens in prompt = %zu\n", __func__, prompt_tokens.size());
+        for (int i = 0; i < (int) prompt_tokens.size(); i++) {
+            LOG_DBG("%6d -> '%s'\n", prompt_tokens[i], llama_token_to_piece(ctx, prompt_tokens[i]).c_str());
+        }
+        LOG_DBG("\n");
+#endif
+
+
+    // setup the sampler to be used while ingesting the prompt
+    gpt_sampler* smpl = gpt_sampler_init(model, params.sparams);
+    if (!smpl) {
+        LOG_ERR("%s: failed to initialize sampling subsystem\n",  __func__);
+        return_value.result = -5;
+        return return_value;
+    }
+    LOG_INF("sampling seed: %u\n", gpt_sampler_get_seed(smpl));
+    LOG_INF("sampling params: \n%s\n", params.sparams.print().c_str());
+    LOG_INF("sampler chain: \n%s\n", gpt_sampler_print(smpl).c_str());
+    LOG_INF("batch size n_batch = %d\n",params.n_batch);
+    LOG_INF("\n\n");
+
+    // NOTE: Might need extra work here for models with encoders
+
+    // Ingest the prompt
+    int32_t n_consumed = 0;
+    while ((int)prompt_tokens.size() > n_consumed) {
+        // push the prompt in the sampling context in order to apply repetition penalties later
+        // for the prompt, we don't apply grammar rules
+        gpt_sampler_accept(smpl, prompt_tokens[n_consumed], /* accept_grammar= */ false);
+        ++n_consumed;
+    }
+
+    n_consumed = 0;
+    for (int i = 0; i < (int)prompt_tokens.size(); i += params.n_batch) {
+        int n_eval = (int)prompt_tokens.size() - i;
+        if (n_eval > params.n_batch) {
+            n_eval = params.n_batch;
+        }
+        if (llama_decode(ctx, llama_batch_get_one(&prompt_tokens[i], n_eval, n_consumed, 0))) {
+            LOG_ERR("%s : failed to eval batch of %d at offset %d\n", __func__, n_eval, i);
+            return_value.result = -6;
+            return return_value;
+        }
+        n_consumed += n_eval;
+        LOG_DBG("%s: prompt tokens consumed so far = %d / %zu\n", __func__, n_consumed, prompt_tokens.size());
+    }
+
+    return_value.result = n_consumed;
+    return_value.gpt_sampler = smpl;
+    return return_value;
+}
+
+int32_t
+wooly_sample_next(
+    void *llama_context_ptr, 
+    void *gpt_sampler_ptr) 
+{
+    llama_context *ctx = static_cast<llama_context *>(llama_context_ptr); 
+    gpt_sampler *smpl = static_cast<gpt_sampler *>(gpt_sampler_ptr);
+
+    const llama_token id = gpt_sampler_sample(smpl, ctx, -1);
+    gpt_sampler_accept(smpl, id, true);
+    //LOG_DBG("last: %s\n", llama_token_to_piece(ctx, id, true).c_str());
+
+    return id;
+}
+
+int32_t
+wooly_process_next_token(
+    void *llama_context_ptr, 
+    int32_t next_token,
+    int32_t position)
+{
+    llama_context *ctx = static_cast<llama_context *>(llama_context_ptr); 
+    if (llama_decode(ctx, llama_batch_get_one(&next_token, 1, position, 0))) {
+        LOG_ERR("%s : failed to evaluate the next token\n", __func__);
+        return -1;
+    }
+
+    return 0;
+}
+
+int32_t
+wooly_check_eog_and_antiprompt(
+    wooly_gpt_params *simple_params, 
+    void *llama_context_ptr, 
+    void *llama_model_ptr, 
+    void *gpt_sampler_ptr) 
+{
+    llama_context *ctx = static_cast<llama_context *>(llama_context_ptr); 
+    llama_model *model = static_cast<llama_model *>(llama_model_ptr); 
+    gpt_sampler *smpl = static_cast<gpt_sampler *>(gpt_sampler_ptr);
+ 
+    // first, we check against the model's end of generation tokens
+    if (llama_token_is_eog(model, gpt_sampler_last(smpl))) {
+        return 1;
+    }
+
+    // then we check against our antiprompts if supplied
+    if (simple_params->antiprompt_count > 0 && simple_params->antiprompts != NULL) {
+        const int n_prev = 32;
+        const std::string last_output = gpt_sampler_prev_str(smpl, ctx, n_prev);
+
+        bool is_antiprompt = false;
+        // Check if each of the reverse prompts appears at the end of the output.
+        // If we're not running interactively, the reverse prompt might be tokenized with some following characters
+        // so we'll compensate for that by widening the search window a bit.
+        for (int i=0; i<simple_params->antiprompt_count; ++i) {
+            std::string antiprompt(simple_params->antiprompts[i]);
+            size_t extra_padding = 2;
+            size_t search_start_pos = last_output.length() > static_cast<size_t>(antiprompt.length() + extra_padding)
+                ? last_output.length() - static_cast<size_t>(antiprompt.length() + extra_padding)
+                : 0;
+
+            if (last_output.find(antiprompt, search_start_pos) != std::string::npos) {
+                is_antiprompt = true;
+                break;
+            }
+        }
+
+        // tokenized antiprompts
+        std::vector<std::vector<llama_token>> antiprompt_ids;
+        antiprompt_ids.reserve(simple_params->antiprompt_count);
+        for (int i=0; i<simple_params->antiprompt_count; ++i) {
+            std::string antiprompt(simple_params->antiprompts[i]);
+            antiprompt_ids.emplace_back(::llama_tokenize(ctx, antiprompt, false, true));
+        }
+
+        // and this time check check for reverse prompt using special tokens
+        llama_token last_token = gpt_sampler_last(smpl);
+        for (std::vector<llama_token> ids : antiprompt_ids) {
+            if (ids.size() == 1 && last_token == ids[0]) {
+                is_antiprompt = true;
+                break;
+            }
+        }
+
+        if (is_antiprompt) {
+            LOG_DBG("%s: found antiprompt: %s\n", __func__, last_output.c_str());
+            return 2;
+        }
+    }
+
+    return 0;
+}
+
+void*
+wooly_freeze_prediction_state(
+    wooly_gpt_params *simple_params,
+    void *llama_context_ptr,
+    void *llama_model_ptr,
+    int32_t *predicted_tokens,
+    int32_t predicted_token_count)
+{
+    llama_context *ctx = static_cast<llama_context *>(llama_context_ptr); 
+    llama_model *model = static_cast<llama_model *>(llama_model_ptr); 
+    
+    // must be passed the prompt use to freeze the current state
+    if (simple_params->prompt == NULL || strlen(simple_params->prompt) <= 0) {
+        return NULL;
+    }
+
+    // tokenize the prompt
+    const bool add_bos = llama_add_bos_token(model);
+    if (!llama_model_has_encoder(model)) {
+        GGML_ASSERT(!llama_add_eos_token(model));
+    }
+
+    // tokenize the prompt
+    std::vector<llama_token> prompt_tokens = ::llama_tokenize(ctx, simple_params->prompt, add_bos, true);
+    
+    llama_predict_prompt_cache* prompt_cache = new llama_predict_prompt_cache;
+    llama_synchronize(ctx);
+
+    const size_t state_size = llama_state_get_size(ctx);
+    prompt_cache->last_processed_prompt_state = new uint8_t[state_size];
+    prompt_cache->last_processed_prompt_state_size = state_size;
+
+    llama_state_get_data(ctx, prompt_cache->last_processed_prompt_state, state_size);
+    prompt_cache->last_prompt = simple_params->prompt;
+    prompt_cache->processed_prompt_tokens.insert(prompt_cache->processed_prompt_tokens.end(), prompt_tokens.begin(),prompt_tokens.end());
+
+    // if we're freezing a state that includes predicted tokens, then include those too.
+    if (predicted_tokens != NULL && predicted_token_count > 0) {
+        std::vector<llama_token> predictions(predicted_tokens, predicted_tokens + predicted_token_count);
+        prompt_cache->processed_prompt_tokens.insert(prompt_cache->processed_prompt_tokens.end(), predictions.begin(),predictions.end());
+    }
+    return prompt_cache;
+}
+
+wooly_process_prompt_results
+wooly_defrost_prediction_state(
+    wooly_gpt_params *simple_params,
+    void *llama_context_ptr, 
+    void *llama_model_ptr, 
+    void *prompt_cache_ptr)
+{
+    llama_context *ctx = static_cast<llama_context *>(llama_context_ptr); 
+    llama_model *model = static_cast<llama_model *>(llama_model_ptr); 
+    llama_predict_prompt_cache* prompt_cache = static_cast<llama_predict_prompt_cache *>(prompt_cache_ptr); 
+    wooly_process_prompt_results return_value;
+
+    // build up a new sampler for the parameters provided
+    gpt_params params;
+    fill_gpt_params_from_simple(simple_params, &params);
+    gpt_sampler* smpl = gpt_sampler_init(model, params.sparams);
+    if (!smpl) {
+        LOG_ERR("%s: failed to initialize sampling subsystem\n",  __func__);
+        return_value.result = -1;
+        return return_value;
+    }
+
+    // feed the prompt back through the sampler to reset the sampler state
+    gpt_sampler_reset(smpl);
+    for (int i=0; i<prompt_cache->processed_prompt_tokens.size(); ++i) {
+        gpt_sampler_accept(smpl, prompt_cache->processed_prompt_tokens[i], /* accept_grammar= */ false);
+    }
+
+    llama_synchronize(ctx);
+    llama_state_set_data(ctx, prompt_cache->last_processed_prompt_state, prompt_cache->last_processed_prompt_state_size);
+
+    return_value.gpt_sampler = smpl;
+    return_value.result = prompt_cache->processed_prompt_tokens.size();
+    return return_value;
+}
+
+
 wooly_predict_result 
 wooly_predict(
     wooly_gpt_params simple_params, 
@@ -199,8 +548,7 @@ wooly_predict(
 {
     llama_context *ctx = (llama_context *) llama_context_ptr; 
     llama_model *model = (llama_model *) llama_model_ptr;
-    llama_context *ctx_guidance = nullptr;
-    gpt_sampler * smpl = nullptr;
+    gpt_sampler *smpl = nullptr;
     gpt_params params;
     fill_gpt_params_from_simple(&simple_params, &params);
 
@@ -348,7 +696,6 @@ wooly_predict(
         }
     }
 
-    // Tokenize negative prompt
     if ((int) embd_inp.size() > n_ctx - 4) {
         LOG_ERR("%s: prompt is too long (%d tokens, max %d)\n", __func__, (int) embd_inp.size(), n_ctx - 4);
         return_value.result = 2;

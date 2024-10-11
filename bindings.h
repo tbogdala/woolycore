@@ -47,6 +47,16 @@ typedef struct wooly_predict_result {
     int n_eval;
 } wooly_predict_result;
 
+typedef struct wooly_process_prompt_results {
+    // number of prompt tokens processed if positive;
+    // if negative, then it is an error code.
+    int32_t result;
+
+    // this is the sampler created while ingesting the prompt
+    // and can be used for further prediction.
+    void* gpt_sampler;
+} wooly_process_prompt_results;
+
 
 // A stripped down version of `llama_model_params` for the supported features
 // of the wrapper library as well as for ease of dynamic binding - this library
@@ -191,6 +201,80 @@ wooly_free_model(
 // parameters that upstream llama.cpp uses. 
 LLAMA_API wooly_gpt_params 
 wooly_new_gpt_params();
+
+// takes the `simple_params` passed in, resets the context for the loaded model,
+// and then ingests the prompt without doing any prediction. on success, this
+// will return a `results` value of the number of tokens processed for the 
+// prompt and the `gpt_sampler` that was created for ingestion.
+LLAMA_API wooly_process_prompt_results 
+wooly_process_prompt(
+    wooly_gpt_params *simple_params, 
+    void *llama_context_ptr, 
+    void *llama_model_ptr);
+
+// this function computes a prediction after adding the `next_token` to the context.
+// `position` should describe its location in the context. 
+//
+// for example, if `wooly_process_prompt()` returned a `results` count of 100,
+// then `wooly_sample_next()` was called and returned the first new token, this
+// function could be called with `position` set to 100 and `next_token` as the
+// result from `wooly_sample_next() to run the calculations for the model to
+// be able to sample the next token. 
+LLAMA_API int32_t
+wooly_process_next_token(
+    void *llama_context_ptr, 
+    int32_t next_token,
+    int32_t position);
+
+// takes the loaded model context and the sample parameters as well as a
+// pointer to a `gpt_sampler` - such as from `wooly_process_prompt_results` -
+// and samples the next token and then returns it.
+int32_t
+wooly_sample_next(
+    void *llama_context_ptr, 
+    void *gpt_sampler_ptr);
+
+// checks the last bit of sampled tokens to see if any antiprompts have been
+// encoutered - if so, 2 is returned. if the last token is the end-of-generation
+// token for the model, then 1 is returned. otherwise, if no stopping tokens
+// have been found, 0 is returned.
+int32_t
+wooly_check_eog_and_antiprompt(
+    wooly_gpt_params *simple_params, 
+    void *llama_context_ptr, 
+    void *llama_model_ptr, 
+    void *gpt_sampler_ptr);
+
+
+// this function 'freezes' a prediction state returning a pointer to an internal
+// object that can be used to 'defrost' this state at a later time. it uses
+// the `simple_params` to pull the original prompt from to tokenize it again to
+// save the tokens, because the sampler will need access to them on 'defrost'.
+// additionally `predicted_tokens` can be NULL or a pointer to a `predicted_token_count`
+// length array of ints that can be tacked onto the prompt tokens to allow for
+// freezing a state after prediction.
+void*
+wooly_freeze_prediction_state(
+    wooly_gpt_params *simple_params,
+    void *llama_context_ptr,
+    void *llama_model_ptr,
+    int32_t *predicted_tokens,
+    int32_t predicted_token_count);
+
+
+// this function restores the frozen state data to the context provided
+// in `llama_context_ptr`. `simple_params` is needed to build a new
+// sampler, providing the possibility to change sampler settings.
+// `prompt_cache_ptr` should be the returned pointer from calling
+// `wooly_freeze_prediction_state()`. the returned `wooly_process_prompt_results`
+// will have the total number of processed tokens in `results` and the new
+// sampler to user in `gpt_sampler`.
+wooly_process_prompt_results
+wooly_defrost_prediction_state(
+    wooly_gpt_params *simple_params,
+    void *llama_context_ptr, 
+    void *llama_model_ptr, 
+    void *prompt_cache_ptr);
 
 // run a text prediction base on the `simple_params` passed in, which is a reduced
 // set of parameters upstream llama.cpp uses. `out_result` is a `char` buffer that
