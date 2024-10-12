@@ -212,6 +212,12 @@ wooly_process_prompt(
     void *llama_context_ptr, 
     void *llama_model_ptr);
 
+// takes the `gpt_sampler` pointer returned in `wooly_process_prompt_results`
+// from calling functions like `wooly_process_prompt` and frees the memory.
+LLAMA_API void 
+wooly_free_sampler(
+    void *gpt_sampler_ptr);
+
 // this function computes a prediction after adding the `next_token` to the context.
 // `position` should describe its location in the context. 
 //

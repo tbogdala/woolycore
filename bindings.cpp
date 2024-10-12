@@ -186,6 +186,15 @@ wooly_free_model(
     }
 }
 
+void 
+wooly_free_sampler(
+    void *gpt_sampler_ptr)
+{
+    if (gpt_sampler_ptr != NULL) {
+        gpt_sampler *smpl = static_cast<gpt_sampler *>(gpt_sampler_ptr);
+        gpt_sampler_free(smpl);
+    }
+}
 
 wooly_process_prompt_results 
 wooly_process_prompt(

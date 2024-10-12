@@ -69,7 +69,7 @@ void test_predictions() {
     params.ignore_eos = false;
     params.flash_attn = true;
     params.n_batch = 128;
-    params.prompt_cache_all = true;
+    params.prompt_cache_all = false;
 
     const char *antiprompts_array[] = {"<|end|>"};
     params.antiprompt_count = 1;
@@ -156,6 +156,8 @@ void test_predictions() {
     TEST_ASSERT_NOT_NULL(first_prediction_cache);
     int32_t first_prediction_count = predicted;
 
+    wooly_free_sampler(sampler_ptr);
+
     /* ===== Prompt cache test ===== */
 
     puts("\n~~~ ---- ~~~~\n\n");
@@ -224,6 +226,8 @@ void test_predictions() {
     free(prediction_str);
 
     wooly_free_prompt_cache(prompt_cache);
+    wooly_free_sampler(sampler_ptr);
+
 
     /* ===== Prompt cache test - continue mode ===== */
 
@@ -291,8 +295,9 @@ void test_predictions() {
     printf("\nFinal Prediction (new tokens: %d):\n\n%s%s\n\n", predicted, first_prediction_str, prediction_str);
     free(first_prediction_str);
     free(prediction_str);
-    wooly_free_prompt_cache(first_prediction_cache);
 
+    wooly_free_prompt_cache(first_prediction_cache);
+    wooly_free_sampler(sampler_ptr);
     wooly_free_model(loaded_model.ctx, loaded_model.model);
 }
 
