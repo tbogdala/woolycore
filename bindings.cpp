@@ -189,7 +189,7 @@ wooly_free_model(
 
 wooly_process_prompt_results 
 wooly_process_prompt(
-    wooly_gpt_params *simple_params, 
+    wooly_gpt_params simple_params, 
     void *llama_context_ptr, 
     void *llama_model_ptr) 
 {
@@ -198,7 +198,7 @@ wooly_process_prompt(
     llama_model *model = static_cast<llama_model *>(llama_model_ptr);
 
     gpt_params params;
-    fill_gpt_params_from_simple(simple_params, &params);
+    fill_gpt_params_from_simple(&simple_params, &params);
 
 
     // Do a basic set of warnings based on incoming parameters
@@ -392,7 +392,7 @@ wooly_process_next_token(
 
 int32_t
 wooly_check_eog_and_antiprompt(
-    wooly_gpt_params *simple_params, 
+    wooly_gpt_params simple_params, 
     void *llama_context_ptr, 
     void *llama_model_ptr, 
     void *gpt_sampler_ptr) 
@@ -407,7 +407,7 @@ wooly_check_eog_and_antiprompt(
     }
 
     // then we check against our antiprompts if supplied
-    if (simple_params->antiprompt_count > 0 && simple_params->antiprompts != NULL) {
+    if (simple_params.antiprompt_count > 0 && simple_params.antiprompts != NULL) {
         const int n_prev = 32;
         const std::string last_output = gpt_sampler_prev_str(smpl, ctx, n_prev);
 
@@ -415,8 +415,8 @@ wooly_check_eog_and_antiprompt(
         // Check if each of the reverse prompts appears at the end of the output.
         // If we're not running interactively, the reverse prompt might be tokenized with some following characters
         // so we'll compensate for that by widening the search window a bit.
-        for (int i=0; i<simple_params->antiprompt_count; ++i) {
-            std::string antiprompt(simple_params->antiprompts[i]);
+        for (int i=0; i<simple_params.antiprompt_count; ++i) {
+            std::string antiprompt(simple_params.antiprompts[i]);
             size_t extra_padding = 2;
             size_t search_start_pos = last_output.length() > static_cast<size_t>(antiprompt.length() + extra_padding)
                 ? last_output.length() - static_cast<size_t>(antiprompt.length() + extra_padding)
@@ -430,9 +430,9 @@ wooly_check_eog_and_antiprompt(
 
         // tokenized antiprompts
         std::vector<std::vector<llama_token>> antiprompt_ids;
-        antiprompt_ids.reserve(simple_params->antiprompt_count);
-        for (int i=0; i<simple_params->antiprompt_count; ++i) {
-            std::string antiprompt(simple_params->antiprompts[i]);
+        antiprompt_ids.reserve(simple_params.antiprompt_count);
+        for (int i=0; i<simple_params.antiprompt_count; ++i) {
+            std::string antiprompt(simple_params.antiprompts[i]);
             antiprompt_ids.emplace_back(::llama_tokenize(ctx, antiprompt, false, true));
         }
 
@@ -456,7 +456,7 @@ wooly_check_eog_and_antiprompt(
 
 void*
 wooly_freeze_prediction_state(
-    wooly_gpt_params *simple_params,
+    wooly_gpt_params simple_params,
     void *llama_context_ptr,
     void *llama_model_ptr,
     int32_t *predicted_tokens,
@@ -466,7 +466,7 @@ wooly_freeze_prediction_state(
     llama_model *model = static_cast<llama_model *>(llama_model_ptr); 
     
     // must be passed the prompt use to freeze the current state
-    if (simple_params->prompt == NULL || strlen(simple_params->prompt) <= 0) {
+    if (strlen(simple_params.prompt) <= 0) {
         return NULL;
     }
 
@@ -477,7 +477,7 @@ wooly_freeze_prediction_state(
     }
 
     // tokenize the prompt
-    std::vector<llama_token> prompt_tokens = ::llama_tokenize(ctx, simple_params->prompt, add_bos, true);
+    std::vector<llama_token> prompt_tokens = ::llama_tokenize(ctx, simple_params.prompt, add_bos, true);
     
     llama_predict_prompt_cache* prompt_cache = new llama_predict_prompt_cache;
     llama_synchronize(ctx);
@@ -487,7 +487,7 @@ wooly_freeze_prediction_state(
     prompt_cache->last_processed_prompt_state_size = state_size;
 
     llama_state_get_data(ctx, prompt_cache->last_processed_prompt_state, state_size);
-    prompt_cache->last_prompt = simple_params->prompt;
+    prompt_cache->last_prompt = simple_params.prompt;
     prompt_cache->processed_prompt_tokens.insert(prompt_cache->processed_prompt_tokens.end(), prompt_tokens.begin(),prompt_tokens.end());
 
     // if we're freezing a state that includes predicted tokens, then include those too.
@@ -500,7 +500,7 @@ wooly_freeze_prediction_state(
 
 wooly_process_prompt_results
 wooly_defrost_prediction_state(
-    wooly_gpt_params *simple_params,
+    wooly_gpt_params simple_params,
     void *llama_context_ptr, 
     void *llama_model_ptr, 
     void *prompt_cache_ptr)
@@ -512,7 +512,7 @@ wooly_defrost_prediction_state(
 
     // build up a new sampler for the parameters provided
     gpt_params params;
-    fill_gpt_params_from_simple(simple_params, &params);
+    fill_gpt_params_from_simple(&simple_params, &params);
     gpt_sampler* smpl = gpt_sampler_init(model, params.sparams);
     if (!smpl) {
         LOG_ERR("%s: failed to initialize sampling subsystem\n",  __func__);

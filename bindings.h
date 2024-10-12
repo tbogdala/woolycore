@@ -208,7 +208,7 @@ wooly_new_gpt_params();
 // prompt and the `gpt_sampler` that was created for ingestion.
 LLAMA_API wooly_process_prompt_results 
 wooly_process_prompt(
-    wooly_gpt_params *simple_params, 
+    wooly_gpt_params simple_params, 
     void *llama_context_ptr, 
     void *llama_model_ptr);
 
@@ -240,7 +240,7 @@ wooly_sample_next(
 // have been found, 0 is returned.
 int32_t
 wooly_check_eog_and_antiprompt(
-    wooly_gpt_params *simple_params, 
+    wooly_gpt_params simple_params, 
     void *llama_context_ptr, 
     void *llama_model_ptr, 
     void *gpt_sampler_ptr);
@@ -255,7 +255,7 @@ wooly_check_eog_and_antiprompt(
 // freezing a state after prediction.
 void*
 wooly_freeze_prediction_state(
-    wooly_gpt_params *simple_params,
+    wooly_gpt_params simple_params,
     void *llama_context_ptr,
     void *llama_model_ptr,
     int32_t *predicted_tokens,
@@ -271,7 +271,7 @@ wooly_freeze_prediction_state(
 // sampler to user in `gpt_sampler`.
 wooly_process_prompt_results
 wooly_defrost_prediction_state(
-    wooly_gpt_params *simple_params,
+    wooly_gpt_params simple_params,
     void *llama_context_ptr, 
     void *llama_model_ptr, 
     void *prompt_cache_ptr);

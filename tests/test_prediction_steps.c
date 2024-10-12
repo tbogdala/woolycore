@@ -81,7 +81,7 @@ void test_predictions() {
     // used in the process so that repeat penalties and such are
     // accounted for.
     wooly_process_prompt_results results = wooly_process_prompt(
-        &params, 
+        params, 
         loaded_model.ctx, 
         loaded_model.model);
     int32_t prompt_token_count = results.result;
@@ -94,7 +94,7 @@ void test_predictions() {
     // we may dethaw it repeatedly to remove prompt processing penalty for
     // multiple generations.
     void* prompt_cache = wooly_freeze_prediction_state(
-        &params, 
+        params, 
         loaded_model.ctx, 
         loaded_model.model,
         NULL,
@@ -113,7 +113,7 @@ void test_predictions() {
         predicted_tokens[predicted] = wooly_sample_next(loaded_model.ctx, sampler_ptr);
         
         // do all the antiprompt testing and eog testing
-        int32_t eog = wooly_check_eog_and_antiprompt(&params, loaded_model.ctx, loaded_model.model, sampler_ptr);
+        int32_t eog = wooly_check_eog_and_antiprompt(params, loaded_model.ctx, loaded_model.model, sampler_ptr);
         if (eog > 0) {
             printf("End of generation token or antiprompt token encountered; stopping generation...\n");
             break;
@@ -148,7 +148,7 @@ void test_predictions() {
 
     // freeze the state again after the text prediction
     void* first_prediction_cache = wooly_freeze_prediction_state(
-        &params, 
+        params, 
         loaded_model.ctx, 
         loaded_model.model,
         predicted_tokens,
@@ -173,7 +173,7 @@ void test_predictions() {
 
     // restore our prediction state to what it was after we had ingested the prompt
     wooly_process_prompt_results defrost_results = wooly_defrost_prediction_state(
-        &params,
+        params,
         loaded_model.ctx, 
         loaded_model.model, 
         prompt_cache);
@@ -190,7 +190,7 @@ void test_predictions() {
         predicted_tokens[predicted] = wooly_sample_next(loaded_model.ctx, sampler_ptr);
         
         // do all the antiprompt testing and eog testing
-        int32_t eog = wooly_check_eog_and_antiprompt(&params, loaded_model.ctx, loaded_model.model, sampler_ptr);
+        int32_t eog = wooly_check_eog_and_antiprompt(params, loaded_model.ctx, loaded_model.model, sampler_ptr);
         if (eog > 0) {
             printf("End of generation token or antiprompt token encountered; stopping generation...\n");
             break;
@@ -239,7 +239,7 @@ void test_predictions() {
 
     // restore our prediction state to what it was after we had run our first prediction
     defrost_results = wooly_defrost_prediction_state(
-        &params,
+        params,
         loaded_model.ctx, 
         loaded_model.model, 
         first_prediction_cache);
@@ -256,7 +256,7 @@ void test_predictions() {
         predicted_tokens[predicted] = wooly_sample_next(loaded_model.ctx, sampler_ptr);
         
         // do all the antiprompt testing and eog testing
-        int32_t eog = wooly_check_eog_and_antiprompt(&params, loaded_model.ctx, loaded_model.model, sampler_ptr);
+        int32_t eog = wooly_check_eog_and_antiprompt(params, loaded_model.ctx, loaded_model.model, sampler_ptr);
         if (eog > 0) {
             printf("End of generation token or antiprompt token encountered; stopping generation...\n");
             break;
