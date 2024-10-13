@@ -1,11 +1,11 @@
-# woolycore
+# woolycore (v0.2.0)
 
 A thin C wrapper around the [llama.cpp library](https://github.com/ggerganov/llama.cpp), aiming for a high-level
 API that provides a surface to build FFI libraries on top of for other languages.
 
 Upstream llama.cpp is pinned to commit 
-[D5CB868](https://github.com/ggerganov/llama.cpp/releases/tag/b3889)
-from Oct 6, 2024.
+[EDC2656](https://github.com/ggerganov/llama.cpp/releases/tag/b3912)
+from Oct 12, 2024.
 
 Supported Operating Systems: Windows, MacOS, Linux, iOS, Android 
 

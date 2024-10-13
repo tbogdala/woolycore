@@ -212,11 +212,11 @@ wooly_process_prompt(
     void *llama_context_ptr, 
     void *llama_model_ptr);
 
-// takes the `gpt_sampler` pointer returned in `wooly_process_prompt_results`
+// takes the `common_sampler` pointer returned in `wooly_process_prompt_results`
 // from calling functions like `wooly_process_prompt` and frees the memory.
 LLAMA_API void 
 wooly_free_sampler(
-    void *gpt_sampler_ptr);
+    void *sampler_ptr);
 
 // this function computes a prediction after adding the `next_token` to the context.
 // `position` should describe its location in the context. 
@@ -233,12 +233,12 @@ wooly_process_next_token(
     int32_t position);
 
 // takes the loaded model context and the sample parameters as well as a
-// pointer to a `gpt_sampler` - such as from `wooly_process_prompt_results` -
+// pointer to a `common_sampler` - such as from `wooly_process_prompt_results` -
 // and samples the next token and then returns it.
 int32_t
 wooly_sample_next(
     void *llama_context_ptr, 
-    void *gpt_sampler_ptr);
+    void *sampler_ptr);
 
 // checks the last bit of sampled tokens to see if any antiprompts have been
 // encoutered - if so, 2 is returned. if the last token is the end-of-generation
@@ -249,7 +249,7 @@ wooly_check_eog_and_antiprompt(
     wooly_gpt_params simple_params, 
     void *llama_context_ptr, 
     void *llama_model_ptr, 
-    void *gpt_sampler_ptr);
+    void *sampler_ptr);
 
 
 // this function 'freezes' a prediction state returning a pointer to an internal

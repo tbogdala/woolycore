@@ -26,7 +26,7 @@ void tearDown(void) {}
 static void batch_add_seq(llama_batch & batch, const std::vector<int32_t> & tokens, llama_seq_id seq_id) {
     size_t n_tokens = tokens.size();
     for (size_t i = 0; i < n_tokens; i++) {
-        llama_batch_add(batch, tokens[i], i, { seq_id }, true);
+        common_batch_add(batch, tokens[i], i, { seq_id }, true);
     }
 }
 
@@ -73,7 +73,7 @@ static void batch_decode_embeddings(llama_context * ctx, llama_batch & batch, fl
         }
 
         float * out = output + embd_pos * n_embd;
-        llama_embd_normalize(embd, out, n_embd, embd_norm);
+        common_embd_normalize(embd, out, n_embd, embd_norm);
     }
 }
 
@@ -157,7 +157,7 @@ void test_embeddings() {
     std::vector<std::vector<int32_t>> tokenized_prompts;
     for (const auto & prompt : prompts) {
         // we do the tokenization with the original llama call
-        auto llama_tokens = ::llama_tokenize(static_cast<const llama_model *>(loaded_model.model), prompt.c_str(), true, false);
+        auto llama_tokens = ::common_tokenize(static_cast<const llama_model *>(loaded_model.model), prompt.c_str(), true, false);
 
         // and then use our wrapped library
         size_t num_of_tokens = wooly_llama_tokenize(
@@ -246,7 +246,7 @@ void test_embeddings() {
             batch_decode_embeddings(static_cast<llama_context *>(loaded_model.ctx), batch, out, s, n_embd, embd_normalize);
             e += context_params.pooling_type == LLAMA_POOLING_TYPE_NONE ? batch.n_tokens : s;
             s = 0;
-            llama_batch_clear(batch);
+            common_batch_clear(batch);
         }
 
         // add to batch
@@ -324,7 +324,7 @@ void test_embeddings() {
         printf("\n");
         for (int i = 0; i < n_prompts; i++) {
             for (int j = 0; j < n_prompts; j++) {
-                float sim = llama_embd_similarity_cos(emb + i * n_embd, emb + j * n_embd, n_embd);
+                float sim = common_embd_similarity_cos(emb + i * n_embd, emb + j * n_embd, n_embd);
                 printf("%6.2f ", sim);
             }
             printf("%s", prompts[i].c_str());

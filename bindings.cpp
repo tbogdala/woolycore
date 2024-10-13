@@ -12,9 +12,9 @@
 
 // internal functions headers
 void 
-fill_gpt_params_from_simple(
+fill_params_from_simple(
     wooly_gpt_params *simple, 
-    struct gpt_params *output);
+    struct common_params *output);
 
 llama_model_params
 conv_wooly_to_llama_model_params(
@@ -90,12 +90,12 @@ wooly_load_model(
 {
     if (silent_llama) {
         llama_log_set(llama_log_callback_silent, NULL);
-        gpt_log_pause(gpt_log_main());
+        common_log_pause(common_log_main());
     } else {
 #ifdef WOOLY_DEBUG
-        gpt_log_set_verbosity_thold(1); 
+        common_log_set_verbosity_thold(1); 
 #else
-        gpt_log_set_verbosity_thold(0); 
+        common_log_set_verbosity_thold(0); 
 #endif
     }
 
@@ -188,11 +188,11 @@ wooly_free_model(
 
 void 
 wooly_free_sampler(
-    void *gpt_sampler_ptr)
+    void *sampler_ptr)
 {
-    if (gpt_sampler_ptr != NULL) {
-        gpt_sampler *smpl = static_cast<gpt_sampler *>(gpt_sampler_ptr);
-        gpt_sampler_free(smpl);
+    if (sampler_ptr != NULL) {
+        common_sampler *smpl = static_cast<common_sampler *>(sampler_ptr);
+        common_sampler_free(smpl);
     }
 }
 
@@ -206,8 +206,8 @@ wooly_process_prompt(
     llama_context *ctx = static_cast<llama_context *>(llama_context_ptr); 
     llama_model *model = static_cast<llama_model *>(llama_model_ptr);
 
-    gpt_params params;
-    fill_gpt_params_from_simple(&simple_params, &params);
+    common_params params;
+    fill_params_from_simple(&simple_params, &params);
 
 
     // Do a basic set of warnings based on incoming parameters
@@ -230,7 +230,7 @@ wooly_process_prompt(
     // print system information
     {
         LOG_INF("\n");
-        LOG_INF("%s\n", gpt_params_get_system_info(params).c_str());
+        LOG_INF("%s\n", common_params_get_system_info(params).c_str());
         LOG_INF("\n");
     }
 
@@ -283,7 +283,7 @@ wooly_process_prompt(
     std::vector<llama_token> prompt_tokens;
     if (!params.prompt.empty()) {
         LOG_DBG("tokenize the prompt\n");
-        prompt_tokens = ::llama_tokenize(ctx, params.prompt, add_bos, true);
+        prompt_tokens = ::common_tokenize(ctx, params.prompt, add_bos, true);
         LOG_DBG("prompt: \"%s\"\n", params.prompt.c_str());
         LOG_DBG("tokens: %s\n", string_from(ctx, prompt_tokens).c_str());
     }
@@ -298,7 +298,7 @@ wooly_process_prompt(
                 __func__, string_from(ctx, prompt_tokens).c_str());
         } else {
             LOG_ERR("%s: error: input is empty and bos isn't supported so a newline will be used!\n", __func__);
-            prompt_tokens = ::llama_tokenize(ctx, "\n", add_bos, true);
+            prompt_tokens = ::common_tokenize(ctx, "\n", add_bos, true);
             if (prompt_tokens.empty()) {
                 LOG_ERR("%s: error: input is empty and failed to tokenize newline!\n", __func__);
                 return_value.result = -3;
@@ -326,15 +326,15 @@ wooly_process_prompt(
 
 
     // setup the sampler to be used while ingesting the prompt
-    gpt_sampler* smpl = gpt_sampler_init(model, params.sparams);
+    common_sampler* smpl = common_sampler_init(model, params.sparams);
     if (!smpl) {
         LOG_ERR("%s: failed to initialize sampling subsystem\n",  __func__);
         return_value.result = -5;
         return return_value;
     }
-    LOG_INF("sampling seed: %u\n", gpt_sampler_get_seed(smpl));
+    LOG_INF("sampling seed: %u\n", common_sampler_get_seed(smpl));
     LOG_INF("sampling params: \n%s\n", params.sparams.print().c_str());
-    LOG_INF("sampler chain: \n%s\n", gpt_sampler_print(smpl).c_str());
+    LOG_INF("sampler chain: \n%s\n", common_sampler_print(smpl).c_str());
     LOG_INF("batch size n_batch = %d\n",params.n_batch);
     LOG_INF("\n\n");
 
@@ -345,7 +345,7 @@ wooly_process_prompt(
     while ((int)prompt_tokens.size() > n_consumed) {
         // push the prompt in the sampling context in order to apply repetition penalties later
         // for the prompt, we don't apply grammar rules
-        gpt_sampler_accept(smpl, prompt_tokens[n_consumed], /* accept_grammar= */ false);
+        common_sampler_accept(smpl, prompt_tokens[n_consumed], /* accept_grammar= */ false);
         ++n_consumed;
     }
 
@@ -372,14 +372,14 @@ wooly_process_prompt(
 int32_t
 wooly_sample_next(
     void *llama_context_ptr, 
-    void *gpt_sampler_ptr) 
+    void *sampler_ptr) 
 {
     llama_context *ctx = static_cast<llama_context *>(llama_context_ptr); 
-    gpt_sampler *smpl = static_cast<gpt_sampler *>(gpt_sampler_ptr);
+    common_sampler *smpl = static_cast<common_sampler *>(sampler_ptr);
 
-    const llama_token id = gpt_sampler_sample(smpl, ctx, -1);
-    gpt_sampler_accept(smpl, id, true);
-    //LOG_DBG("last: %s\n", llama_token_to_piece(ctx, id, true).c_str());
+    const llama_token id = common_sampler_sample(smpl, ctx, -1);
+    common_sampler_accept(smpl, id, true);
+    //LOG_DBG("last: %s\n", common_token_to_piece(ctx, id, true).c_str());
 
     return id;
 }
@@ -404,21 +404,21 @@ wooly_check_eog_and_antiprompt(
     wooly_gpt_params simple_params, 
     void *llama_context_ptr, 
     void *llama_model_ptr, 
-    void *gpt_sampler_ptr) 
+    void *sampler_ptr) 
 {
     llama_context *ctx = static_cast<llama_context *>(llama_context_ptr); 
     llama_model *model = static_cast<llama_model *>(llama_model_ptr); 
-    gpt_sampler *smpl = static_cast<gpt_sampler *>(gpt_sampler_ptr);
+    common_sampler *smpl = static_cast<common_sampler *>(sampler_ptr);
  
     // first, we check against the model's end of generation tokens
-    if (llama_token_is_eog(model, gpt_sampler_last(smpl))) {
+    if (llama_token_is_eog(model, common_sampler_last(smpl))) {
         return 1;
     }
 
     // then we check against our antiprompts if supplied
     if (simple_params.antiprompt_count > 0 && simple_params.antiprompts != NULL) {
         const int n_prev = 32;
-        const std::string last_output = gpt_sampler_prev_str(smpl, ctx, n_prev);
+        const std::string last_output = common_sampler_prev_str(smpl, ctx, n_prev);
 
         bool is_antiprompt = false;
         // Check if each of the reverse prompts appears at the end of the output.
@@ -442,11 +442,11 @@ wooly_check_eog_and_antiprompt(
         antiprompt_ids.reserve(simple_params.antiprompt_count);
         for (int i=0; i<simple_params.antiprompt_count; ++i) {
             std::string antiprompt(simple_params.antiprompts[i]);
-            antiprompt_ids.emplace_back(::llama_tokenize(ctx, antiprompt, false, true));
+            antiprompt_ids.emplace_back(::common_tokenize(ctx, antiprompt, false, true));
         }
 
         // and this time check check for reverse prompt using special tokens
-        llama_token last_token = gpt_sampler_last(smpl);
+        llama_token last_token = common_sampler_last(smpl);
         for (std::vector<llama_token> ids : antiprompt_ids) {
             if (ids.size() == 1 && last_token == ids[0]) {
                 is_antiprompt = true;
@@ -486,7 +486,7 @@ wooly_freeze_prediction_state(
     }
 
     // tokenize the prompt
-    std::vector<llama_token> prompt_tokens = ::llama_tokenize(ctx, simple_params.prompt, add_bos, true);
+    std::vector<llama_token> prompt_tokens = ::common_tokenize(ctx, simple_params.prompt, add_bos, true);
     
     llama_predict_prompt_cache* prompt_cache = new llama_predict_prompt_cache;
     llama_synchronize(ctx);
@@ -520,9 +520,9 @@ wooly_defrost_prediction_state(
     wooly_process_prompt_results return_value;
 
     // build up a new sampler for the parameters provided
-    gpt_params params;
-    fill_gpt_params_from_simple(&simple_params, &params);
-    gpt_sampler* smpl = gpt_sampler_init(model, params.sparams);
+    common_params params;
+    fill_params_from_simple(&simple_params, &params);
+    common_sampler* smpl = common_sampler_init(model, params.sparams);
     if (!smpl) {
         LOG_ERR("%s: failed to initialize sampling subsystem\n",  __func__);
         return_value.result = -1;
@@ -530,9 +530,9 @@ wooly_defrost_prediction_state(
     }
 
     // feed the prompt back through the sampler to reset the sampler state
-    gpt_sampler_reset(smpl);
+    common_sampler_reset(smpl);
     for (int i=0; i<prompt_cache->processed_prompt_tokens.size(); ++i) {
-        gpt_sampler_accept(smpl, prompt_cache->processed_prompt_tokens[i], /* accept_grammar= */ false);
+        common_sampler_accept(smpl, prompt_cache->processed_prompt_tokens[i], /* accept_grammar= */ false);
     }
 
     llama_synchronize(ctx);
@@ -557,9 +557,9 @@ wooly_predict(
 {
     llama_context *ctx = (llama_context *) llama_context_ptr; 
     llama_model *model = (llama_model *) llama_model_ptr;
-    gpt_sampler *smpl = nullptr;
-    gpt_params params;
-    fill_gpt_params_from_simple(&simple_params, &params);
+    common_sampler *smpl = nullptr;
+    common_params params;
+    fill_params_from_simple(&simple_params, &params);
 
     if (params.n_ctx != 0 && params.n_ctx < 8) {
         LOG_WRN("%s: warning: minimum context size is 8, using minimum size.\n", __func__);
@@ -620,7 +620,7 @@ wooly_predict(
     // print system information
     {
         LOG_INF("\n");
-        LOG_INF("%s\n", gpt_params_get_system_info(params).c_str());
+        LOG_INF("%s\n", common_params_get_system_info(params).c_str());
         LOG_INF("\n");
     }
 
@@ -683,7 +683,7 @@ wooly_predict(
     if (!resuse_last_prompt_data) {
         if (!params.prompt.empty() || session_tokens.empty()) {
             LOG_DBG("tokenize the prompt\n");
-            embd_inp = ::llama_tokenize(ctx, params.prompt, add_bos, true);
+            embd_inp = ::common_tokenize(ctx, params.prompt, add_bos, true);
         } else {
             LOG_DBG("use session tokens\n");
             embd_inp = session_tokens;
@@ -771,16 +771,16 @@ wooly_predict(
         LOG_DBG("\n");
 #endif
 
-    smpl = gpt_sampler_init(model, params.sparams);
+    smpl = common_sampler_init(model, params.sparams);
     if (!smpl) {
         LOG_ERR("%s: failed to initialize sampling subsystem\n",  __func__);
         return_value.result = 10;
         return return_value;
     }
 
-    LOG_INF("sampling seed: %u\n", gpt_sampler_get_seed(smpl));
+    LOG_INF("sampling seed: %u\n", common_sampler_get_seed(smpl));
     LOG_INF("sampling params: \n%s\n", params.sparams.print().c_str());
-    LOG_INF("sampler chain: \n%s\n", gpt_sampler_print(smpl).c_str());
+    LOG_INF("sampler chain: \n%s\n", common_sampler_print(smpl).c_str());
     LOG_INF("generate: n_ctx = %d, n_batch = %d, n_predict = %d, n_keep = %d\n", n_ctx, params.n_batch, params.n_predict, params.n_keep);
     LOG_INF("\n\n");
 
@@ -799,7 +799,7 @@ wooly_predict(
 
     antiprompt_ids.reserve(params.antiprompt.size());
     for (const std::string & antiprompt : params.antiprompt) {
-        antiprompt_ids.emplace_back(::llama_tokenize(ctx, antiprompt, false, true));
+        antiprompt_ids.emplace_back(::common_tokenize(ctx, antiprompt, false, true));
     }
 
     // our result to send back to woolycore bindings
@@ -922,9 +922,9 @@ wooly_predict(
                 prompt_cache_data->processed_prompt_tokens.insert(prompt_cache_data->processed_prompt_tokens.end(), embd_inp.begin(),embd_inp.end());
             }
 
-            const llama_token id = gpt_sampler_sample(smpl, ctx, -1);
+            const llama_token id = common_sampler_sample(smpl, ctx, -1);
 
-            gpt_sampler_accept(smpl, id, true);
+            common_sampler_accept(smpl, id, true);
 
             // LOG_DBG("last: %s\n", string_from(ctx, smpl->prev.to_vector()).c_str());
 
@@ -937,14 +937,14 @@ wooly_predict(
 
             // call the token callback with the newly predicted token
             if (token_cb != NULL) {
-                auto token_str = llama_token_to_piece(ctx, id, include_specials);
+                auto token_str = common_token_to_piece(ctx, id, include_specials);
                 if (!token_cb(token_str.c_str())) {
                     break;
                 }
             }
 
             for (auto id : embd) {
-                res += llama_token_to_piece(ctx, id, include_specials);
+                res += common_token_to_piece(ctx, id, include_specials);
             }
         } else {
             // some user input remains from prompt or interaction, forward it to processing
@@ -954,7 +954,7 @@ wooly_predict(
 
                 // push the prompt in the sampling context in order to apply repetition penalties later
                 // for the prompt, we don't apply grammar rules
-                gpt_sampler_accept(smpl, embd_inp[n_consumed], /* accept_grammar= */ false);
+                common_sampler_accept(smpl, embd_inp[n_consumed], /* accept_grammar= */ false);
 
                 ++n_consumed;
                 if ((int) embd.size() >= params.n_batch) {
@@ -968,7 +968,7 @@ wooly_predict(
             // check for reverse prompt in the last n_prev tokens
             if (!params.antiprompt.empty()) {
                 const int n_prev = 32;
-                const std::string last_output = gpt_sampler_prev_str(smpl, ctx, n_prev);
+                const std::string last_output = common_sampler_prev_str(smpl, ctx, n_prev);
 
                 is_antiprompt = false;
                 // Check if each of the reverse prompts appears at the end of the output.
@@ -987,7 +987,7 @@ wooly_predict(
                 }
 
                 // check for reverse prompt using special tokens
-                llama_token last_token = gpt_sampler_last(smpl);
+                llama_token last_token = common_sampler_last(smpl);
                 for (std::vector<llama_token> ids : antiprompt_ids) {
                     if (ids.size() == 1 && last_token == ids[0]) {
                         is_antiprompt = true;
@@ -1002,7 +1002,7 @@ wooly_predict(
         }
 
         // end of generation
-        if (llama_token_is_eog(model, gpt_sampler_last(smpl))) {
+        if (llama_token_is_eog(model, common_sampler_last(smpl))) {
             LOG_DBG(" [end of text]\n");
             break;
         }
@@ -1029,7 +1029,7 @@ wooly_predict(
     strncpy(out_result, res.c_str(), out_result_size - 1);
     out_result[out_result_size-1] = 0;
 
-    gpt_sampler_free(smpl);
+    common_sampler_free(smpl);
     ggml_threadpool_free(threadpool);
     ggml_threadpool_free(threadpool_batch);   
 
@@ -1051,7 +1051,7 @@ LLAMA_API wooly_gpt_params
 wooly_new_gpt_params()
 {
     wooly_gpt_params output;
-    gpt_params prototype;
+    common_params prototype;
 
     // copy default values from the prototype onto the output structure
 
@@ -1107,9 +1107,9 @@ wooly_new_gpt_params()
 }
 
 void 
-fill_gpt_params_from_simple(
+fill_params_from_simple(
     wooly_gpt_params *simple, 
-    gpt_params *output)
+    common_params *output)
 {
     if (simple->prompt != nullptr) {
         output->prompt = simple->prompt;
@@ -1289,7 +1289,7 @@ wooly_llama_tokenize(
     int32_t* out_tokens,
     int64_t out_tokens_size)
 {
-    auto tokens = ::llama_tokenize(
+    auto tokens = ::common_tokenize(
         (const llama_model *)llama_model_ptr, 
         text, 
         add_special, 
@@ -1318,7 +1318,7 @@ wooly_llama_detokenize(
     std::vector<int32_t> input_tokens(tokens, tokens + tokens_size);
         
     // render the tokens out to the string
-    auto string = llama_detokenize(
+    auto string = common_detokenize(
         static_cast<llama_context*>(llama_context_ptr), 
         input_tokens, 
         render_specials);
@@ -1337,7 +1337,7 @@ wooly_llama_detokenize(
 static void batch_add_seq(llama_batch & batch, const std::vector<int32_t> & tokens, llama_seq_id seq_id) {
     size_t n_tokens = tokens.size();
     for (size_t i = 0; i < n_tokens; i++) {
-        llama_batch_add(batch, tokens[i], i, { seq_id }, true);
+        common_batch_add(batch, tokens[i], i, { seq_id }, true);
     }
 }
 
@@ -1384,7 +1384,7 @@ static void batch_decode_embeddings(llama_context * ctx, llama_batch & batch, fl
         }
 
         float * out = output + embd_pos * n_embd;
-        llama_embd_normalize(embd, out, n_embd, embd_norm);
+        common_embd_normalize(embd, out, n_embd, embd_norm);
     }
 }
 
@@ -1434,7 +1434,7 @@ wooly_llama_make_embeddings(
             batch_decode_embeddings(static_cast<llama_context *>(llama_context_ptr), batch, out, s, n_embd, embd_normalize);
             e += pooling_type == LLAMA_POOLING_TYPE_NONE ? batch.n_tokens : s;
             s = 0;
-            llama_batch_clear(batch);
+            common_batch_clear(batch);
         }
 
         // add to batch
