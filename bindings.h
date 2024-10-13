@@ -265,7 +265,7 @@ wooly_freeze_prediction_state(
     void *llama_context_ptr,
     void *llama_model_ptr,
     int32_t *predicted_tokens,
-    int32_t predicted_token_count);
+    int64_t predicted_token_count);
 
 
 // this function restores the frozen state data to the context provided

@@ -469,7 +469,7 @@ wooly_freeze_prediction_state(
     void *llama_context_ptr,
     void *llama_model_ptr,
     int32_t *predicted_tokens,
-    int32_t predicted_token_count)
+    int64_t predicted_token_count)
 {
     llama_context *ctx = static_cast<llama_context *>(llama_context_ptr); 
     llama_model *model = static_cast<llama_model *>(llama_model_ptr); 
