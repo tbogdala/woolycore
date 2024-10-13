@@ -32,12 +32,12 @@ MIT licensed, like the core upstream `llama.cpp` it wraps. See `LICENSE` for det
 * Support for llama.cpp's BNF-like grammar rules for sampling.
 * Ability to cache the current prediction state which can be used to cache processed prompt data in memory 
   so that it can be reused to speed up regeneration using the exact same prompt. It can also be used to continue
-  predictions that have frozen
+  predictions that have been frozen.
 * Tokenize text or just get the number of tokens for a given text string.
 * Generate embeddings using models such as `nomic-ai/nomic-embed-text-v1.5-GGUF` on HuggingFace in a batched process.
 
 
-## Build notes
+## Build Instructions
 
 To build, use the following commands:
 
@@ -65,6 +65,9 @@ at runtime when deployed, so copy the three dlls to the same directory.)
 ```bash
 cmake -B build -DGGML_CUDA=On -DCMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=TRUE 
 cmake --build build --config Release
+
+
+If you wish to not build the unit tests, pass `-DWOOLY_TESTS=Off` to cmake.
 ```
 
 ### Static vs Shared
@@ -82,7 +85,8 @@ Keep in mind that the test executables with CUDA linked in statically take about
 Also, the current solution **does not** work for Windows builds due to MSVC behaving differently. Fixes
 for this particular problem would be welcome.
 
-If you wish to not build the unit tests, pass `-DWOOLY_TESTS=Off` to cmake.
+In addition to `WOOLY_STATIC`, upstream llama.cpp flags can be set as well. If you wanted everything
+compiled into one library file, for example, you can specify `-DBUILD_SHARED_LIBS=Off`.
 
 
 ### Debugging

@@ -17,9 +17,6 @@ if(WOOLY_STATIC)
         bindings.cpp
     )
 else()
-    set(BUILD_SHARED_LIBS On)
-    set(GGML_STATIC Off)
-
     add_library(woolycore SHARED
         bindings.cpp
     )
