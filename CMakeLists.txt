@@ -4,6 +4,7 @@ project("woolycore")
 set(LLAMA_BUILD_TESTS Off)
 set(LLAMA_BUILD_EXAMPLES Off)
 set(LLAMA_BUILD_SERVER Off)
+set(LLAMA_BUILD_COMMON On)
 
 option(WOOLY_DEBUG "Enable extra debugging output while running" Off)
 option(WOOLY_STATIC "Build static library instead of shared" OFF)
@@ -32,7 +33,12 @@ endif()
 # include upstream llamacpp options
 add_subdirectory("llama.cpp")
 
-target_include_directories(woolycore PUBLIC "llama.cpp")
+target_include_directories(woolycore PUBLIC 
+    "llama.cpp"
+    "llama.cpp/include"
+    "llama.cpp/ggml/include"
+    "llama.cpp/common"
+)
 target_compile_features(woolycore PRIVATE cxx_std_11) # don't bump
 target_link_libraries(woolycore PRIVATE common)
 
