@@ -149,7 +149,7 @@ wooly_load_model(
         }
 
         if (llama_model_has_encoder(model)) {
-            llama_decode(lctx, llama_batch_get_one(tmp.data(), tmp.size(), 0, 0));
+            llama_decode(lctx, llama_batch_get_one(tmp.data(), (int32_t) tmp.size(), 0, 0));
             llama_token decoder_start_token_id = llama_model_decoder_start_token(model);
             if (decoder_start_token_id == -1) {
                 decoder_start_token_id = bos;
@@ -158,7 +158,7 @@ wooly_load_model(
             tmp.push_back(decoder_start_token_id);
         }
         if (llama_model_has_decoder(model)) {
-            llama_decode(lctx, llama_batch_get_one(tmp.data(), std::min((size_t) tmp.size(), (size_t) context_params.n_batch), 0, 0));
+            llama_decode(lctx, llama_batch_get_one(tmp.data(), std::min((int32_t) tmp.size(), (int32_t) context_params.n_batch), 0, 0));
         }
         llama_kv_cache_clear(lctx);
         llama_synchronize(lctx);
@@ -539,7 +539,7 @@ wooly_defrost_prediction_state(
     llama_state_set_data(ctx, prompt_cache->last_processed_prompt_state, prompt_cache->last_processed_prompt_state_size);
 
     return_value.gpt_sampler = smpl;
-    return_value.result = prompt_cache->processed_prompt_tokens.size();
+    return_value.result = (int32_t) prompt_cache->processed_prompt_tokens.size();
     return return_value;
 }
 
@@ -733,7 +733,7 @@ wooly_predict(
         }
 
         // remove any "future" tokens that we might have inherited from the previous session
-        llama_kv_cache_seq_rm(ctx, -1, n_matching_session_tokens, -1);
+        llama_kv_cache_seq_rm(ctx, -1, (int32_t) n_matching_session_tokens, -1);
     }
 
     LOG_DBG("recalculate the cached logits (check): embd_inp.size() %zu, n_matching_session_tokens %zu, embd_inp.size() %zu, session_tokens.size() %zu\n",
@@ -810,11 +810,11 @@ wooly_predict(
     // and set the tracking counter to the length of the saved prompt
     if (resuse_last_prompt_data) {
         embd_inp.clear();
-        n_past = prompt_cache_data->processed_prompt_tokens.size();
+        n_past = (int32_t) prompt_cache_data->processed_prompt_tokens.size();
         LOG_INF("%s: reusing prompt tokens; initializing n_consumed to %d\n",  __func__, n_consumed);
     } 
     else if (llama_model_has_encoder(model)) {
-        int enc_input_size = embd_inp.size();
+        int enc_input_size = (int) embd_inp.size();
         llama_token * enc_input_buf = embd_inp.data();
 
         if (llama_encode(ctx, llama_batch_get_one(enc_input_buf, enc_input_size, 0, 0))) {
@@ -892,7 +892,7 @@ wooly_predict(
 
             if (!embd.empty() && !path_session.empty()) {
                 session_tokens.insert(session_tokens.end(), embd.begin(), embd.end());
-                n_session_consumed = session_tokens.size();
+                n_session_consumed = (int) session_tokens.size();
             }
         }
 
@@ -1026,7 +1026,7 @@ wooly_predict(
     return_value.n_eval = timings.n_eval;
 
     // copy at most out_result_size characters.
-    strncpy(out_result, res.c_str(), out_result_size - 1);
+    strncpy(out_result, res.c_str(), (size_t) out_result_size - 1);
     out_result[out_result_size-1] = 0;
 
     common_sampler_free(smpl);
@@ -1324,8 +1324,8 @@ wooly_llama_detokenize(
         render_specials);
 
     // make sure we have enough space in the output buffer
-    if (string.length() + 1 > out_result_size) {
-        return -(string.length() + 1);
+    if (string.length() + 1 > (size_t) out_result_size) {
+        return -((int64_t) string.length() + 1);
     }
 
     // copy the result and then return the length of the string
@@ -1337,7 +1337,7 @@ wooly_llama_detokenize(
 static void batch_add_seq(llama_batch & batch, const std::vector<int32_t> & tokens, llama_seq_id seq_id) {
     size_t n_tokens = tokens.size();
     for (size_t i = 0; i < n_tokens; i++) {
-        common_batch_add(batch, tokens[i], i, { seq_id }, true);
+        common_batch_add(batch, tokens[i], (int32_t) i, { seq_id }, true);
     }
 }
 
@@ -1388,7 +1388,7 @@ static void batch_decode_embeddings(llama_context * ctx, llama_batch & batch, fl
     }
 }
 
-long
+int64_t
 wooly_llama_make_embeddings(
     void *llama_model_ptr,
     void *llama_context_ptr,
@@ -1405,7 +1405,7 @@ wooly_llama_make_embeddings(
     // embedding vector, otherwise all of the embeddings for a given prompt are processed and
     // reduced down to one embedding vector.
     // n_embd_count ends up being the total number of embedding vectors needed for the output.
-    int n_embd_count = 0;
+    int64_t n_embd_count = 0;
     if (pooling_type == LLAMA_POOLING_TYPE_NONE) {
         for (int k = 0; k < token_array_count; k++) {
             n_embd_count += token_array_sizes[k];

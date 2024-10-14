@@ -26,7 +26,7 @@ void tearDown(void) {}
 static void batch_add_seq(llama_batch & batch, const std::vector<int32_t> & tokens, llama_seq_id seq_id) {
     size_t n_tokens = tokens.size();
     for (size_t i = 0; i < n_tokens; i++) {
-        common_batch_add(batch, tokens[i], i, { seq_id }, true);
+        common_batch_add(batch, tokens[i], (int32_t) i, { seq_id }, true);
     }
 }
 
@@ -112,9 +112,11 @@ void test_embeddings() {
     wooly_llama_model_params model_params = wooly_get_default_llama_model_params();
     model_params.n_gpu_layers = 100;
     wooly_llama_context_params context_params = wooly_get_default_llama_context_params();
-    context_params.n_ctx = 2048; // make configurable - depends on emb?
+    context_params.n_ctx = 2048; // make configurable
     context_params.n_batch = context_params.n_ctx; 
     context_params.n_ubatch = context_params.n_batch; // must be the same for non-causal models
+
+    common_init();
 
     // crucial for the embeddings test: set this flag to true!
     context_params.embeddings = true;
@@ -157,7 +159,7 @@ void test_embeddings() {
     std::vector<std::vector<int32_t>> tokenized_prompts;
     for (const auto & prompt : prompts) {
         // we do the tokenization with the original llama call
-        auto llama_tokens = ::common_tokenize(static_cast<const llama_model *>(loaded_model.model), prompt.c_str(), true, false);
+        auto llama_tokens = ::common_tokenize(static_cast<const llama_model *>(loaded_model.model), prompt.c_str(), true, true);
 
         // and then use our wrapped library
         size_t num_of_tokens = wooly_llama_tokenize(
@@ -172,7 +174,7 @@ void test_embeddings() {
         TEST_ASSERT_LESS_OR_EQUAL(token_buffer_size, num_of_tokens);
         TEST_ASSERT_EQUAL_INT32(llama_tokens.size(), num_of_tokens);
         TEST_ASSERT_TRUE(int32_arrays_equal(llama_tokens.data(), token_buffer, num_of_tokens));
-        printf("Prompt tokenized to %ld tokens: %s\n", num_of_tokens, prompt.c_str());
+        printf("Prompt tokenized to %zu tokens: %s\n", num_of_tokens, prompt.c_str());
 
         // copy the data out of our buffer and store it into a vector of token vectors.
         std::vector<int32_t> token_vector;
@@ -210,7 +212,7 @@ void test_embeddings() {
     }
 
     // setup the batch process for the raw llama API
-    const int n_prompts = prompts.size();
+    const int n_prompts = (int) prompts.size();
 
     // count number of embeddings; if no pooling, then each token has its own
     // embedding vector, otherwise all of the embeddings for a given prompt are processed and
@@ -219,7 +221,7 @@ void test_embeddings() {
     int n_embd_count = 0;
     if (context_params.pooling_type == LLAMA_POOLING_TYPE_NONE) {
         for (int k = 0; k < n_prompts; k++) {
-            n_embd_count += tokenized_prompts[k].size();
+            n_embd_count += (int) tokenized_prompts[k].size();
         }
     } else {
         n_embd_count = n_prompts;

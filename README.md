@@ -58,17 +58,16 @@ cmake --build build --config Release
 ```
 
 On Windows, you'll need a few more flags to make sure that all the functions are exported and
-available on the compiled library (And the resulting `build/Release/woolycore.dll` file will
-need to be able to find the `build/bin/Release/ggml.dll` and `build/bin/Release/llama.dll` files
-at runtime when deployed, so copy the three dlls to the same directory.)
+available on the compiled library. Additionally, it's recommended to build with shared libraries
+off, so that the output is just one woolycore DLL file.
 
 ```bash
-cmake -B build -DGGML_CUDA=On -DCMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=TRUE 
+cmake -B build -DGGML_CUDA=On -DCMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=TRUE -DBUILD_SHARED_LIBS=Off
 cmake --build build --config Release
-
+```
 
 If you wish to not build the unit tests, pass `-DWOOLY_TESTS=Off` to cmake.
-```
+
 
 ### Static vs Shared
 
@@ -108,7 +107,7 @@ unit tests contained in it.
 By convention, the unit tests require an environment variable (WOOLY_TEST_MODEL_FILE) to be set 
 with the path to the GGUF file for the model to use during testing.
 
-In a unix environment, that means you can do something like this to run the unit tests:
+In a Unix environment, that means you can do something like this to run the unit tests:
 
 ```bash
 export WOOLY_TEST_MODEL_FILE=models/example-llama-3-8b.gguf
@@ -119,6 +118,12 @@ export WOOLY_TEST_MODEL_FILE=models/example-llama-3-8b.gguf
 export WOOLY_TEST_EMB_MODEL_FILE=models/nomic-embed-text-v1.5.Q8_0.gguf
 ./build/test_embeddings
 ```
+
+### Note for Windows Builds
+
+The `test_embeddings` unit test is currently failing on Windows if `BUILD_SHARED_LIBS` is disabled.
+This test in particular double checks what woolycore produces against what the raw llama.cpp
+library produces and there appears to be an issue with the way it gets compiled, but it has not been resolved.
 
 
 ## Git updates

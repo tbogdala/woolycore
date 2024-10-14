@@ -380,7 +380,7 @@ wooly_llama_detokenize(
 //          buffer has enough space for the result.
 //  The function returns 0 on success and `-(required_size)` if the output buffer
 //  is not big enough; getting the abs() of the return value will yield the size needed.
-LLAMA_API long
+LLAMA_API int64_t
 wooly_llama_make_embeddings(
     void *llama_model_ptr,
     void *llama_context_ptr,

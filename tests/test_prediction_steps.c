@@ -60,11 +60,11 @@ void test_predictions() {
     params.seed = 42;
     params.n_threads = -1;
     params.n_predict = 100;
-    params.temp = 0.1;
+    params.temp = 0.1f;
     params.top_k = 1;
-    params.top_p = 1.0;
-    params.min_p = 0.1;
-    params.penalty_repeat = 1.1;
+    params.top_p = 1.0f;
+    params.min_p = 0.1f;
+    params.penalty_repeat = 1.1f;
     params.penalty_last_n = 512;
     params.ignore_eos = false;
     params.flash_attn = true;
@@ -103,8 +103,7 @@ void test_predictions() {
 
 
     // zero out our prediction token array
-    int32_t predicted_tokens[params.n_predict];
-    memset(&predicted_tokens, 0, sizeof(predicted_tokens));
+    int32_t *predicted_tokens = calloc(params.n_predict, sizeof(int32_t));
 
     // run a prediction loop
     int32_t predicted = 0;
@@ -166,12 +165,12 @@ void test_predictions() {
     // slight lie ... gonna have to change a few other things to make changing
     // the seed actually have an effect.
     params.seed = 1337;
-    params.temp = 3.1;
+    params.temp = 3.1f;
     params.top_k = 40;
-    params.top_p = 0.9;
-    params.min_p = 0.04;
-    params.penalty_repeat = 1.04;
-    memset(&predicted_tokens, 0, sizeof(predicted_tokens));
+    params.top_p = 0.9f;
+    params.min_p = 0.04f;
+    params.penalty_repeat = 1.04f;
+    memset(predicted_tokens, 0, sizeof(int32_t) * params.n_predict);
 
     // restore our prediction state to what it was after we had ingested the prompt
     wooly_process_prompt_results defrost_results = wooly_defrost_prediction_state(
@@ -235,11 +234,12 @@ void test_predictions() {
 
     // restore some of our earlier sampler settings to match the first generation
     params.seed = 42;
-    params.temp = 0.1;
+    params.temp = 0.1f;
     params.top_k = 1;
-    params.top_p = 1.0;
-    params.min_p = 0.1;
-    params.penalty_repeat = 1.1;
+    params.top_p = 1.0f;
+    params.min_p = 0.1f;
+    params.penalty_repeat = 1.1f;
+    memset(predicted_tokens, 0, sizeof(int32_t) * params.n_predict);
 
     // restore our prediction state to what it was after we had run our first prediction
     defrost_results = wooly_defrost_prediction_state(
@@ -295,6 +295,7 @@ void test_predictions() {
     printf("\nFinal Prediction (new tokens: %d):\n\n%s%s\n\n", predicted, first_prediction_str, prediction_str);
     free(first_prediction_str);
     free(prediction_str);
+    free(predicted_tokens);
 
     wooly_free_prompt_cache(first_prediction_cache);
     wooly_free_sampler(sampler_ptr);

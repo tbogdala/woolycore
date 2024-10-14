@@ -56,11 +56,11 @@ void test_predictions() {
     params.seed = 42;
     params.n_threads = -1;
     params.n_predict = 100;
-    params.temp = 0.1;
+    params.temp = 0.1f;
     params.top_k = 1;
-    params.top_p = 1.0;
-    params.min_p = 0.1;
-    params.penalty_repeat = 1.1;
+    params.top_p = 1.0f;
+    params.min_p = 0.1f;
+    params.penalty_repeat = 1.1f;
     params.penalty_last_n = 512;
     params.ignore_eos = false;
     params.flash_attn = true;
