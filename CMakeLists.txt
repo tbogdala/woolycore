@@ -10,6 +10,8 @@ option(WOOLY_DEBUG "Enable extra debugging output while running" Off)
 option(WOOLY_STATIC "Build static library instead of shared" OFF)
 option(WOOLY_TESTS "Build unit tests" On)
 
+add_compile_options(-fPIC)
+
 if(WOOLY_STATIC) 
     set(BUILD_SHARED_LIBS Off)
     set(GGML_STATIC On)
