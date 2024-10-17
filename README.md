@@ -121,9 +121,8 @@ export WOOLY_TEST_EMB_MODEL_FILE=models/nomic-embed-text-v1.5.Q8_0.gguf
 
 ### Note for Windows Builds
 
-The `test_embeddings` unit test is currently failing on Windows if `BUILD_SHARED_LIBS` is disabled.
-This test in particular double checks what woolycore produces against what the raw llama.cpp
-library produces and there appears to be an issue with the way it gets compiled, but it has not been resolved.
+The `test_embeddings` unit test will fail under windows unless built with `-DWOOLY_STATIC=On` being
+passed to the initial run of cmake.
 
 
 ## Git updates
