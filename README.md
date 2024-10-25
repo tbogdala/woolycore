@@ -4,8 +4,8 @@ A thin C wrapper around the [llama.cpp library](https://github.com/ggerganov/lla
 API that provides a surface to build FFI libraries on top of for other languages.
 
 Upstream llama.cpp is pinned to commit 
-[0A1C750](https://github.com/ggerganov/llama.cpp/releases/tag/b3970)
-from Oct 23, 2024.
+[FF252EA](https://github.com/ggerganov/llama.cpp/commit/ff252ea48e90e6552010fd74584334fb41bdd387)
+from Oct 25, 2024.
 
 Supported Operating Systems: Windows, MacOS, Linux, iOS, Android 
 
@@ -28,7 +28,8 @@ MIT licensed, like the core upstream `llama.cpp` it wraps. See `LICENSE` for det
 
 ## Features
 
-* Basic samplers of llama.cpp, including: temp, top-k, top-p, min-p, tail free sampling, locally typical sampling, mirostat.
+* Basic samplers of llama.cpp, including: temp, top-k, top-p, min-p, tail free sampling, locally typical sampling, 
+  mirostat, dynamic temperature, DRY and XTC.
 * Support for llama.cpp's BNF-like grammar rules for sampling.
 * Ability to cache the current prediction state which can be used to cache processed prompt data in memory 
   so that it can be reused to speed up regeneration using the exact same prompt. It can also be used to continue
@@ -66,7 +67,7 @@ cmake -B build -DGGML_CUDA=On -DCMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=TRUE -DBUILD_SH
 cmake --build build --config Release
 ```
 
-If you wish to not build the unit tests, pass `-DWOOLY_TESTS=Off` to cmake.
+If you wish to not build the unit tests, pass `-DWOOLY_TESTS=Off` to `cmake`.
 
 
 ### Static vs Shared
@@ -122,7 +123,7 @@ export WOOLY_TEST_EMB_MODEL_FILE=models/nomic-embed-text-v1.5.Q8_0.gguf
 ### Note for Windows Builds
 
 The `test_embeddings` unit test will fail under windows unless built with `-DWOOLY_STATIC=On` being
-passed to the initial run of cmake.
+passed to the initial run of `cmake`.
 
 
 ## Git updates

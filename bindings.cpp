@@ -1087,6 +1087,8 @@ wooly_new_gpt_params()
     output.top_k = prototype.sparams.top_k;
     output.top_p = prototype.sparams.top_p;
     output.min_p = prototype.sparams.min_p;
+    output.xtc_probability = prototype.sparams.xtc_probability;
+    output.xtc_threshold = prototype.sparams.xtc_threshold;
     output.tfs_z = prototype.sparams.tfs_z;
     output.typical_p = prototype.sparams.typ_p;
     output.temp = prototype.sparams.temp;
@@ -1096,6 +1098,10 @@ wooly_new_gpt_params()
     output.penalty_repeat = prototype.sparams.penalty_repeat;
     output.penalty_freq = prototype.sparams.penalty_freq;
     output.penalty_present = prototype.sparams.penalty_present;
+    output.dry_multiplier = prototype.sparams.dry_multiplier;
+    output.dry_base = prototype.sparams.dry_base;
+    output.dry_allowed_length = prototype.sparams.dry_allowed_length;
+    output.dry_penalty_last_n = prototype.sparams.dry_penalty_last_n;
     output.mirostat = prototype.sparams.mirostat;
     output.mirostat_tau = prototype.sparams.mirostat_tau;
     output.mirostat_eta = prototype.sparams.mirostat_eta;
@@ -1154,6 +1160,8 @@ fill_params_from_simple(
     output->sparams.top_k = simple->top_k;
     output->sparams.top_p = simple->top_p;
     output->sparams.min_p = simple->min_p;
+    output->sparams.xtc_probability = simple->xtc_probability;
+    output->sparams.xtc_threshold = simple->xtc_threshold;
     output->sparams.tfs_z = simple->tfs_z;
     output->sparams.typ_p = simple->typical_p;
     output->sparams.temp = simple->temp;
@@ -1163,6 +1171,10 @@ fill_params_from_simple(
     output->sparams.penalty_repeat = simple->penalty_repeat;
     output->sparams.penalty_freq = simple->penalty_freq;
     output->sparams.penalty_present = simple->penalty_present;
+    output->sparams.dry_multiplier = simple->dry_multiplier;
+    output->sparams.dry_base = simple->dry_base;
+    output->sparams.dry_allowed_length = simple->dry_allowed_length;
+    output->sparams.dry_penalty_last_n = simple->dry_penalty_last_n;
     output->sparams.mirostat = simple->mirostat;
     output->sparams.mirostat_tau = simple->mirostat_tau;
     output->sparams.mirostat_eta = simple->mirostat_eta;
