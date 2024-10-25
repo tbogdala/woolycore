@@ -122,8 +122,7 @@ void test_predictions() {
         if (predicted < params.n_predict) {
             int32_t success = wooly_process_next_token(
                 loaded_model.ctx, 
-                predicted_tokens[predicted], 
-                prompt_token_count + predicted);
+                predicted_tokens[predicted]);
             TEST_ASSERT_EQUAL(0, success);
         }
 
@@ -201,8 +200,7 @@ void test_predictions() {
         if (predicted < params.n_predict) {
             int32_t success = wooly_process_next_token(
                 loaded_model.ctx, 
-                predicted_tokens[predicted], 
-                prompt_token_count + predicted);
+                predicted_tokens[predicted]);
             TEST_ASSERT_EQUAL(0, success);
         }
 
@@ -267,12 +265,10 @@ void test_predictions() {
         }
 
         // only calculate the next logits (expensive compute) if we need to predict more
-        // NOTE: important here is that we're changing our offset to account for our first prediction too
         if (predicted < params.n_predict) {
             int32_t success = wooly_process_next_token(
                 loaded_model.ctx, 
-                predicted_tokens[predicted], 
-                prompt_token_count + first_prediction_count + predicted);
+                predicted_tokens[predicted]);
             TEST_ASSERT_EQUAL(0, success);
         }
 

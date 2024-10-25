@@ -219,18 +219,10 @@ wooly_free_sampler(
     void *sampler_ptr);
 
 // this function computes a prediction after adding the `next_token` to the context.
-// `position` should describe its location in the context. 
-//
-// for example, if `wooly_process_prompt()` returned a `results` count of 100,
-// then `wooly_sample_next()` was called and returned the first new token, this
-// function could be called with `position` set to 100 and `next_token` as the
-// result from `wooly_sample_next() to run the calculations for the model to
-// be able to sample the next token. 
 LLAMA_API int32_t
 wooly_process_next_token(
     void *llama_context_ptr, 
-    int32_t next_token,
-    int32_t position);
+    int32_t next_token);
 
 // takes the loaded model context and the sample parameters as well as a
 // pointer to a `common_sampler` - such as from `wooly_process_prompt_results` -

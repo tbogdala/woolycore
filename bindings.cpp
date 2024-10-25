@@ -149,7 +149,7 @@ wooly_load_model(
         }
 
         if (llama_model_has_encoder(model)) {
-            llama_decode(lctx, llama_batch_get_one(tmp.data(), (int32_t) tmp.size(), 0, 0));
+            llama_decode(lctx, llama_batch_get_one(tmp.data(), (int32_t) tmp.size()));
             llama_token decoder_start_token_id = llama_model_decoder_start_token(model);
             if (decoder_start_token_id == -1) {
                 decoder_start_token_id = bos;
@@ -158,7 +158,7 @@ wooly_load_model(
             tmp.push_back(decoder_start_token_id);
         }
         if (llama_model_has_decoder(model)) {
-            llama_decode(lctx, llama_batch_get_one(tmp.data(), std::min((int32_t) tmp.size(), (int32_t) context_params.n_batch), 0, 0));
+            llama_decode(lctx, llama_batch_get_one(tmp.data(), std::min((int32_t) tmp.size(), (int32_t) context_params.n_batch)));
         }
         llama_kv_cache_clear(lctx);
         llama_synchronize(lctx);
@@ -355,7 +355,7 @@ wooly_process_prompt(
         if (n_eval > params.n_batch) {
             n_eval = params.n_batch;
         }
-        if (llama_decode(ctx, llama_batch_get_one(&prompt_tokens[i], n_eval, n_consumed, 0))) {
+        if (llama_decode(ctx, llama_batch_get_one(&prompt_tokens[i], n_eval))) {
             LOG_ERR("%s : failed to eval batch of %d at offset %d\n", __func__, n_eval, i);
             return_value.result = -6;
             return return_value;
@@ -387,11 +387,10 @@ wooly_sample_next(
 int32_t
 wooly_process_next_token(
     void *llama_context_ptr, 
-    int32_t next_token,
-    int32_t position)
+    int32_t next_token)
 {
     llama_context *ctx = static_cast<llama_context *>(llama_context_ptr); 
-    if (llama_decode(ctx, llama_batch_get_one(&next_token, 1, position, 0))) {
+    if (llama_decode(ctx, llama_batch_get_one(&next_token, 1))) {
         LOG_ERR("%s : failed to evaluate the next token\n", __func__);
         return -1;
     }
@@ -817,7 +816,7 @@ wooly_predict(
         int enc_input_size = (int) embd_inp.size();
         llama_token * enc_input_buf = embd_inp.data();
 
-        if (llama_encode(ctx, llama_batch_get_one(enc_input_buf, enc_input_size, 0, 0))) {
+        if (llama_encode(ctx, llama_batch_get_one(enc_input_buf, enc_input_size))) {
             LOG_ERR("%s : failed to eval\n", __func__);
             return_value.result = 6;
             return return_value;
@@ -876,7 +875,7 @@ wooly_predict(
 
                 LOG_DBG("eval: %s\n", string_from(ctx, embd).c_str());
 
-                if (llama_decode(ctx, llama_batch_get_one(&embd[i], n_eval, n_past, 0))) {
+                if (llama_decode(ctx, llama_batch_get_one(&embd[i], n_eval))) {
                     LOG_ERR("%s : failed to eval\n", __func__);
                     const llama_perf_context_data timings = llama_perf_context(ctx);
                     return_value.n_p_eval = timings.n_p_eval;
