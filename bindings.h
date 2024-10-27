@@ -120,7 +120,7 @@ typedef struct wooly_llama_context_params {
 // we limit it to C compatible types.
 typedef struct wooly_gpt_params {
     const char* prompt;
-    const char ** antiprompts;
+    const char** antiprompts;
     int32_t antiprompt_count;
 
     uint32_t seed;              // RNG seed
@@ -172,6 +172,8 @@ typedef struct wooly_gpt_params {
     float       dry_base;               // 0.0 = disabled;      multiplier * base ^ (length of sequence before token - allowed length)
     int32_t     dry_allowed_length;     // tokens extending repetitions beyond this receive penalty
     int32_t     dry_penalty_last_n;     // how many tokens to scan for repetitions (0 = disable penalty, -1 = context size)
+    const char** dry_sequence_breakers; // default sequence breakers for DRY
+    int32_t     dry_sequence_breakers_count; // number of string pointers in `dry_sequence_breakers`
     int32_t     mirostat;               // 0 = disabled, 1 = mirostat, 2 = mirostat 2.0
     float       mirostat_tau;           // target entropy
     float       mirostat_eta;           // learning rate

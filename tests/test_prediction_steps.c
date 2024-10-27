@@ -71,6 +71,14 @@ void test_predictions() {
     params.n_batch = 128;
     params.prompt_cache_all = false;
 
+    params.dry_multiplier = 0.8;
+    params.dry_base = 1.75;
+    params.dry_allowed_length = 2;
+    params.dry_penalty_last_n = -1;
+    const char *dry_breakers[] = {"\n", ":", "\"", "*"};
+    params.dry_sequence_breakers_count = 4;
+    params.dry_sequence_breakers = dry_breakers;
+
     const char *antiprompts_array[] = {"<|end|>"};
     params.antiprompt_count = 1;
     params.antiprompts = antiprompts_array;

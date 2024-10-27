@@ -1102,6 +1102,8 @@ wooly_new_gpt_params()
     output.dry_base = prototype.sparams.dry_base;
     output.dry_allowed_length = prototype.sparams.dry_allowed_length;
     output.dry_penalty_last_n = prototype.sparams.dry_penalty_last_n;
+    output.dry_sequence_breakers = nullptr;
+    output.dry_sequence_breakers_count = 0;
     output.mirostat = prototype.sparams.mirostat;
     output.mirostat_tau = prototype.sparams.mirostat_tau;
     output.mirostat_eta = prototype.sparams.mirostat_eta;
@@ -1175,6 +1177,10 @@ fill_params_from_simple(
     output->sparams.dry_base = simple->dry_base;
     output->sparams.dry_allowed_length = simple->dry_allowed_length;
     output->sparams.dry_penalty_last_n = simple->dry_penalty_last_n;
+    if (simple->dry_sequence_breakers_count > 0)
+    {
+        output->sparams.dry_sequence_breakers = create_vector(simple->dry_sequence_breakers, simple->dry_sequence_breakers_count);
+    }
     output->sparams.mirostat = simple->mirostat;
     output->sparams.mirostat_tau = simple->mirostat_tau;
     output->sparams.mirostat_eta = simple->mirostat_eta;
