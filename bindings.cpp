@@ -196,6 +196,68 @@ wooly_free_sampler(
     }
 }
 
+
+int32_t
+wooly_process_additional_prompt(
+    void *llama_context_ptr, 
+    void *llama_model_ptr,
+    void *sampler_ptr,
+    const char* additional_prompt)
+{
+    // sanity check additional prompt input string
+    if (additional_prompt == NULL || strlen(additional_prompt) <= 0) {
+        return -1;
+    }
+
+    // certain things that are done in `wooly_process_prompt()` won't be done here,
+    // which include some sanity warnings, KV cache reset, threadpool initialization
+    // or change, dealing with BOS token additon, checking for context overflow,
+    // sampler initialization ...
+
+    llama_context *ctx = static_cast<llama_context *>(llama_context_ptr); 
+    llama_model *model = static_cast<llama_model *>(llama_model_ptr);
+    common_sampler *smpl = static_cast<common_sampler *>(sampler_ptr);
+
+    // tokenize the additional prompt text
+    std::vector<llama_token> prompt_tokens;
+    LOG_DBG("tokenize the additional prompt\n");
+    prompt_tokens = ::common_tokenize(ctx, additional_prompt, false, true);
+    LOG_DBG("additional prompt: \"%s\"\n", additional_prompt);
+    LOG_DBG("tokens: %s\n", string_from(ctx, prompt_tokens).c_str());
+
+    // if we came up with no extra tokens just return
+    if (prompt_tokens.empty()) {
+        LOG_DBG("additional prompt yielded no tokens; returning ..\n");
+        return 0;
+    }
+
+    // Ingest the prompt
+    int32_t n_consumed = 0;
+    while ((int)prompt_tokens.size() > n_consumed) {
+        // push the prompt in the sampling context in order to apply repetition penalties later
+        // for the prompt, we don't apply grammar rules
+        common_sampler_accept(smpl, prompt_tokens[n_consumed], /* accept_grammar= */ false);
+        ++n_consumed;
+    }
+
+    uint32_t n_batch = llama_n_batch(ctx);
+    n_consumed = 0;
+    for (int i = 0; i < (int)prompt_tokens.size(); i += n_batch) {
+        int n_eval = (int)prompt_tokens.size() - i;
+        if (n_eval > n_batch) {
+            n_eval = n_batch;
+        }
+        if (llama_decode(ctx, llama_batch_get_one(&prompt_tokens[i], n_eval))) {
+            LOG_ERR("%s : failed to eval batch of %d at offset %d\n", __func__, n_eval, i);
+            return -2;
+        }
+        n_consumed += n_eval;
+        LOG_DBG("%s: prompt tokens consumed so far = %d / %zu\n", __func__, n_consumed, prompt_tokens.size());
+    }
+
+    return n_consumed;
+}
+
 wooly_process_prompt_results 
 wooly_process_prompt(
     wooly_gpt_params simple_params, 

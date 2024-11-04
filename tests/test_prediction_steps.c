@@ -166,15 +166,6 @@ void test_predictions() {
 
     puts("\n~~~ ---- ~~~~\n\n");
 
-    // change only the seed and use the prompt_cache from the results above. 
-    // slight lie ... gonna have to change a few other things to make changing
-    // the seed actually have an effect.
-    params.seed = 1337;
-    params.temp = 3.1f;
-    params.top_k = 40;
-    params.top_p = 0.9f;
-    params.min_p = 0.04f;
-    params.penalty_repeat = 1.04f;
     memset(predicted_tokens, 0, sizeof(int32_t) * params.n_predict);
 
     // restore our prediction state to what it was after we had ingested the prompt
@@ -189,6 +180,18 @@ void test_predictions() {
 
     // use the new sampler to pickup on the adjusted settings
     sampler_ptr = defrost_results.gpt_sampler;
+
+    // inject a little more prompt in just to make it different and test
+    // the ability to add more prompt to ingest. This should produce a 
+    // distinctly different result than the first prediction.
+    const char* new_prompt_text = "Do you have a suggestion for genre?<|end|>\n<|user|>\nMake it like a Pixar movie script, but with those two authors!<|end|>\n<|assistant|>\n";
+    int32_t additional_tokens = wooly_process_additional_prompt(
+        loaded_model.ctx, 
+        loaded_model.model,
+        sampler_ptr,
+        new_prompt_text
+    );
+    TEST_ASSERT_GREATER_THAN(0, additional_tokens);
 
     // run another prediction loop
     predicted = 0;
@@ -234,16 +237,11 @@ void test_predictions() {
 
     puts("\n~~~ ---- ~~~~\n\n");
 
-    // restore some of our earlier sampler settings to match the first generation
-    params.seed = 42;
-    params.temp = 0.1f;
-    params.top_k = 1;
-    params.top_p = 1.0f;
-    params.min_p = 0.1f;
-    params.penalty_repeat = 1.1f;
     memset(predicted_tokens, 0, sizeof(int32_t) * params.n_predict);
 
-    // restore our prediction state to what it was after we had run our first prediction
+    // restore our prediction state to what it was after we had run our first prediction.
+    // this should mean that the additional prompt string we added above will no longer
+    // be there and the prediction can continue as it would have initially.
     defrost_results = wooly_defrost_prediction_state(
         params,
         loaded_model.ctx, 

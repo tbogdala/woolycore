@@ -219,6 +219,16 @@ wooly_process_prompt(
     void *llama_context_ptr, 
     void *llama_model_ptr);
 
+// takes a context that already has been through `wooly_process_prompt()` to 
+// process prompt tokens and takes the sampler returned from that function call
+// to process the `additiona_prompt` string as more prompt tokens.
+LLAMA_API int32_t
+wooly_process_additional_prompt(
+    void *llama_context_ptr, 
+    void *llama_model_ptr,
+    void *sampler_ptr,
+    const char* additional_prompt);
+
 // takes the `common_sampler` pointer returned in `wooly_process_prompt_results`
 // from calling functions like `wooly_process_prompt` and frees the memory.
 LLAMA_API void 
