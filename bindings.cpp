@@ -554,485 +554,128 @@ wooly_predict(
     void* prompt_cache_ptr, 
     wooly_token_update_callback token_cb) 
 {
-    llama_context *ctx = (llama_context *) llama_context_ptr; 
-    llama_model *model = (llama_model *) llama_model_ptr;
-    common_sampler *smpl = nullptr;
-    common_params params;
-    fill_params_from_simple(&simple_params, &params);
+    llama_context *ctx = static_cast<llama_context *>(llama_context_ptr); 
 
-    if (params.n_ctx != 0 && params.n_ctx < 8) {
-        LOG_WRN("%s: warning: minimum context size is 8, using minimum size.\n", __func__);
-        params.n_ctx = 8;
-    }
-    if (params.rope_freq_base != 0.0) {
-        LOG_WRN("%s: warning: changing RoPE frequency base to %g.\n", __func__, params.rope_freq_base);
-    }
+    wooly_predict_result results;
+    int64_t t_start_us = ggml_time_us();
 
-    if (params.rope_freq_scale != 0.0) {
-        LOG_WRN("%s: warning: scaling RoPE frequency by %g.\n", __func__, params.rope_freq_scale);
-    }
-    
-    llama_predict_prompt_cache *prompt_cache_data = (llama_predict_prompt_cache *) prompt_cache_ptr;
-    wooly_predict_result return_value;
-    return_value.n_eval = return_value.n_p_eval = 0;
+    // keeps track of how many prompt tokens were processed.
+    // note: this will remain zero if the prompt cache is used.
+    int32_t prompt_token_count = 0;
 
-    llama_kv_cache_clear(ctx);
-    llama_perf_context_reset(ctx);
-        
-    LOG_INF("%s: llama threadpool init = n_threads = %d\n", __func__, (int) params.cpuparams.n_threads);
-    struct ggml_threadpool_params tpp_batch =
-            ggml_threadpool_params_from_cpu_params(params.cpuparams_batch);
-    struct ggml_threadpool_params tpp =
-            ggml_threadpool_params_from_cpu_params(params.cpuparams);
-
-    set_process_priority(params.cpuparams.priority);
-
-    struct ggml_threadpool * threadpool_batch = NULL;
-    if (!ggml_threadpool_params_match(&tpp, &tpp_batch)) {
-        threadpool_batch = ggml_threadpool_new(&tpp_batch);
-        if (!threadpool_batch) {
-            LOG_ERR("%s: batch threadpool create failed : n_threads %d\n", __func__, tpp_batch.n_threads);
-            return_value.result = 8;
-            return return_value;
-        }
-
-        // Start the non-batch threadpool in the paused state
-        tpp.paused = true;
-    }
-
-    struct ggml_threadpool * threadpool = ggml_threadpool_new(&tpp);
-    if (!threadpool) {
-        LOG_ERR("%s: threadpool create failed : n_threads %d\n", __func__, tpp.n_threads);
-        return_value.result = 9;
-        return return_value;
-    }
-
-    llama_attach_threadpool(ctx, threadpool, threadpool_batch);
-    
-    const int n_ctx_train = llama_n_ctx_train(model);
-    const int n_ctx = llama_n_ctx(ctx);
-
-    if (n_ctx > n_ctx_train) {
-        LOG_WRN("%s: warning: model was trained on only %d context tokens (%d specified)\n", __func__, n_ctx_train, n_ctx);
-    }
-
-    // print system information
-    {
-        LOG_INF("\n");
-        LOG_INF("%s\n", common_params_get_system_info(params).c_str());
-        LOG_INF("\n");
-    }
-
-    bool resuse_last_prompt_data = false;
-    if (prompt_cache_data != nullptr && params.prompt_cache_all) {
-        // check to see if we're repeating the same prompt and reuse the stored prompt data if so.
-        // if it's not a match, clear out the cached tokens.
-        if (prompt_cache_data->last_prompt == params.prompt) {
-            LOG_INF("Prompt match detected. Going to attempt to use last processed prompt token data and state.\n");
-            resuse_last_prompt_data = true;
-            llama_state_set_data(ctx, prompt_cache_data->last_processed_prompt_state, prompt_cache_data->last_processed_prompt_state_size);
-        } else {
-            // new prompt detected, so free the memory of the cached state
-            if (prompt_cache_data->last_processed_prompt_state != nullptr) {
-                delete[] prompt_cache_data->last_processed_prompt_state;
-                prompt_cache_data->last_processed_prompt_state = nullptr;
-                prompt_cache_data->last_processed_prompt_state_size = 0;
-            }
-            prompt_cache_data->processed_prompt_tokens.clear();
-        }
+    wooly_process_prompt_results prompt_results;
+    void* prompt_cache = prompt_cache_ptr;
+    if (prompt_cache != NULL) {
+        // restore prediction state from the prompt cache
+        prompt_results = wooly_defrost_prediction_state(
+            simple_params, 
+            llama_context_ptr, 
+            llama_model_ptr,
+            prompt_cache);
     } else {
-        // if we don't have a prompt cache object, create one
-        prompt_cache_data = new llama_predict_prompt_cache;
-        prompt_cache_data->last_processed_prompt_state = nullptr;
-        prompt_cache_data->last_processed_prompt_state_size = 0;
-    }
-    // also copy the pointer of the prompt_cache_data to the result here now that it's for sure allocated
-    return_value.prompt_cache = prompt_cache_data;
+        // get the prompt ingested into the context and pull the sampler
+        // used in the process so that repeat penalties and such are
+        // accounted for.
+        prompt_results = wooly_process_prompt(
+            simple_params, 
+            llama_context_ptr, 
+            llama_model_ptr);
+    
 
-    std::string path_session = params.path_prompt_cache;
-    std::vector<llama_token> session_tokens;
-
-    if (!path_session.empty()) {
-        LOG_INF("%s: attempting to load saved session from '%s'\n", __func__, path_session.c_str());
-        if (!file_exists(path_session)) {
-            LOG_INF("%s: session file does not exist, will create.\n", __func__);
-        } else if (file_is_empty(path_session)) {
-            LOG_INF("%s: The session file is empty. A new session will be initialized.\n", __func__);
-        } else {
-            // The file exists and is not empty
-            session_tokens.resize(n_ctx);
-            size_t n_token_count_out = 0;
-            if (!llama_state_load_file(ctx, path_session.c_str(), session_tokens.data(), session_tokens.capacity(), &n_token_count_out)) {
-                LOG_ERR("%s: failed to load session file '%s'\n", __func__, path_session.c_str());
-                return_value.result = 1;
-                return return_value;
-            }
-            session_tokens.resize(n_token_count_out);
-            LOG_INF("%s: loaded a session with prompt size of %d tokens\n", __func__, (int)session_tokens.size());
+        // if the caller wishes to cache the prompt, freeze the prediction state here
+        if (simple_params.prompt_cache_all) {
+            prompt_cache = wooly_freeze_prediction_state(
+                simple_params, 
+                llama_context_ptr, 
+                llama_model_ptr,
+                NULL,
+                0);
         }
+        
+        prompt_token_count = prompt_results.result;
     }
 
-    const bool add_bos = llama_add_bos_token(model);
-    if (!llama_model_has_encoder(model)) {
-        GGML_ASSERT(!llama_add_eos_token(model));
-    }
-    LOG_DBG("n_ctx: %d, add_bos: %d\n", n_ctx, add_bos);
+    int64_t t_p_eval_end_us = ggml_time_us();
 
-    std::vector<llama_token> embd_inp;
-    if (!resuse_last_prompt_data) {
-        if (!params.prompt.empty() || session_tokens.empty()) {
-            LOG_DBG("tokenize the prompt\n");
-            embd_inp = ::common_tokenize(ctx, params.prompt, add_bos, true);
-        } else {
-            LOG_DBG("use session tokens\n");
-            embd_inp = session_tokens;
-        }
-    }
+    // pull the sampler from the prompt processing
+    void* sampler_ptr = prompt_results.gpt_sampler;
 
-    LOG_DBG("prompt: \"%s\"\n", params.prompt.c_str());
-    LOG_DBG("tokens: %s\n", string_from(ctx, embd_inp).c_str());
 
-    // Should not run without any tokens
-    if (embd_inp.empty() && !resuse_last_prompt_data) {
-        if (add_bos) {
-            embd_inp.push_back(llama_token_bos(model));
-            LOG_WRN("embd_inp was considered empty and bos was added: %s\n", string_from(ctx, embd_inp).c_str());
-        } else {
-            LOG_ERR("error: input is empty\n");
-            return_value.result = 7;
-            return return_value;
-        }
-    }
+    // calculate how many tokens to predict; passing -1 means we use the maximum
+    // amount remaining in the context.
+    int32_t num_to_predict = simple_params.n_predict != -1  
+        ? simple_params.n_predict 
+        : llama_n_ctx(ctx) - prompt_results.result - 4;
 
-    if ((int) embd_inp.size() > n_ctx - 4) {
-        LOG_ERR("%s: prompt is too long (%d tokens, max %d)\n", __func__, (int) embd_inp.size(), n_ctx - 4);
-        return_value.result = 2;
-        return return_value;
-    }
 
-    // debug message about similarity of saved session, if applicable
-    size_t n_matching_session_tokens = 0;
-    if (!session_tokens.empty()) {
-        for (llama_token id : session_tokens) {
-            if (n_matching_session_tokens >= embd_inp.size() || id != embd_inp[n_matching_session_tokens]) {
+    // zero out our prediction token array
+    int32_t *predicted_tokens = static_cast<int32_t *>(calloc(num_to_predict, sizeof(int32_t)));
+
+
+    // run a prediction loop
+    int32_t predicted = 0;
+    while (predicted < num_to_predict) {
+        predicted_tokens[predicted] = wooly_sample_next(llama_context_ptr, sampler_ptr);
+        
+        // call the token callback with the newly predicted token
+        if (token_cb != NULL) {
+            auto token_str = common_token_to_piece(ctx, predicted_tokens[predicted], include_specials);
+            if (!token_cb(token_str.c_str())) {
                 break;
             }
-            n_matching_session_tokens++;
-        }
-        if (params.prompt.empty() && n_matching_session_tokens == embd_inp.size()) {
-            LOG_INF("%s: using full prompt from session file\n", __func__);
-        } else if (n_matching_session_tokens >= embd_inp.size()) {
-            LOG_INF("%s: session file has exact match for prompt!\n", __func__);
-        } else if (n_matching_session_tokens < (embd_inp.size() / 2)) {
-            LOG_WRN("%s: session file has low similarity to prompt (%zu / %zu tokens); will mostly be reevaluated\n",
-                    __func__, n_matching_session_tokens, embd_inp.size());
-        } else {
-            LOG_INF("%s: session file matches %zu / %zu tokens of prompt\n",
-                    __func__, n_matching_session_tokens, embd_inp.size());
         }
 
-        // remove any "future" tokens that we might have inherited from the previous session
-        llama_kv_cache_seq_rm(ctx, -1, (int32_t) n_matching_session_tokens, -1);
-    }
-
-    LOG_DBG("recalculate the cached logits (check): embd_inp.size() %zu, n_matching_session_tokens %zu, embd_inp.size() %zu, session_tokens.size() %zu\n",
-        embd_inp.size(), n_matching_session_tokens, embd_inp.size(), session_tokens.size());
-
-    // if we will use the cache for the full prompt without reaching the end of the cache, force
-    // reevaluation of the last token to recalculate the cached logits
-    if (!embd_inp.empty() && n_matching_session_tokens == embd_inp.size() && session_tokens.size() > embd_inp.size()) {
-        LOG_DBG("recalculate the cached logits (do): session_tokens.resize( %zu )", embd_inp.size() - 1);
-
-        session_tokens.resize(embd_inp.size() - 1);
-    }
-
-    // number of tokens to keep when resetting context
-    if (params.n_keep < 0 || params.n_keep > (int)embd_inp.size()) {
-        params.n_keep = (int)embd_inp.size();
-    } else {
-        params.n_keep += add_bos; // always keep the BOS token
-    }
-
-#ifdef WOOLY_DEBUG
-        LOG_DBG("%s: prompt: '%s'\n", __func__, params.prompt.c_str());
-        LOG_DBG("%s: number of tokens in prompt = %zu\n", __func__, embd_inp.size());
-        for (int i = 0; i < (int) embd_inp.size(); i++) {
-            LOG_DBG("%6d -> '%s'\n", embd_inp[i], llama_token_to_piece(ctx, embd_inp[i]).c_str());
-        }
-
-       if (params.n_keep > add_bos) {
-            LOG_DBG("%s: static prompt based on n_keep: '", __func__);
-            for (int i = 0; i < params.n_keep; i++) {
-                LOG_CNT("%s", llama_token_to_piece(ctx, embd_inp[i]).c_str());
-            }
-            LOG_CNT("'\n");
-        }
-        LOG_DBG("\n");
-#endif
-
-    smpl = common_sampler_init(model, params.sparams);
-    if (!smpl) {
-        LOG_ERR("%s: failed to initialize sampling subsystem\n",  __func__);
-        return_value.result = 10;
-        return return_value;
-    }
-
-    LOG_INF("sampling seed: %u\n", common_sampler_get_seed(smpl));
-    LOG_INF("sampling params: \n%s\n", params.sparams.print().c_str());
-    LOG_INF("sampler chain: \n%s\n", common_sampler_print(smpl).c_str());
-    LOG_INF("generate: n_ctx = %d, n_batch = %d, n_predict = %d, n_keep = %d\n", n_ctx, params.n_batch, params.n_predict, params.n_keep);
-    LOG_INF("\n\n");
-
-    bool is_antiprompt        = false;
-    bool need_to_save_session = !path_session.empty() && n_matching_session_tokens < embd_inp.size();
-
-    int n_past             = 0;
-    int n_remain           = params.n_predict;
-    int n_consumed         = 0;
-    int n_session_consumed = 0;
-
-    std::vector<llama_token> embd;
-
-    // tokenized antiprompts
-    std::vector<std::vector<llama_token>> antiprompt_ids;
-
-    antiprompt_ids.reserve(params.antiprompt.size());
-    for (const std::string & antiprompt : params.antiprompt) {
-        antiprompt_ids.emplace_back(::common_tokenize(ctx, antiprompt, false, true));
-    }
-
-    // our result to send back to woolycore bindings
-    std::string res = "";
-    bool need_to_save_state = true;
-
-    // if we're reusing the prompt, clear out any input tokens to be processed
-    // and set the tracking counter to the length of the saved prompt
-    if (resuse_last_prompt_data) {
-        embd_inp.clear();
-        n_past = (int32_t) prompt_cache_data->processed_prompt_tokens.size();
-        LOG_INF("%s: reusing prompt tokens; initializing n_consumed to %d\n",  __func__, n_consumed);
-    } 
-    else if (llama_model_has_encoder(model)) {
-        int enc_input_size = (int) embd_inp.size();
-        llama_token * enc_input_buf = embd_inp.data();
-
-        if (llama_encode(ctx, llama_batch_get_one(enc_input_buf, enc_input_size))) {
-            LOG_ERR("%s : failed to eval\n", __func__);
-            return_value.result = 6;
-            return return_value;
-        }
-
-        llama_token decoder_start_token_id = llama_model_decoder_start_token(model);
-        if (decoder_start_token_id == -1) {
-            decoder_start_token_id = llama_token_bos(model);
-        }
-
-        embd_inp.clear();
-        embd_inp.push_back(decoder_start_token_id);
-    }
-
-    while (n_remain != 0 && !is_antiprompt) {
-        // predict
-        if (!embd.empty()) {
-            // Note: (n_ctx - 4) here is to match the logic for commandline prompt handling via
-            // --prompt or --file which uses the same value.
-            int max_embd_size = n_ctx - 4;
-
-            // Ensure the input doesn't exceed the context size by truncating embd if necessary.
-            if ((int) embd.size() > max_embd_size) {
-                const int skipped_tokens = (int) embd.size() - max_embd_size;
-                embd.resize(max_embd_size);
-                LOG_WRN("<<input too long: skipped %d token%s>>", skipped_tokens, skipped_tokens != 1 ? "s" : "");
-            }
-
-            // try to reuse a matching prefix from the loaded session instead of re-eval (via n_past)
-            if (n_session_consumed < (int)session_tokens.size()) {
-                size_t i = 0;
-                for ( ; i < embd.size(); i++) {
-                    if (embd[i] != session_tokens[n_session_consumed]) {
-                        session_tokens.resize(n_session_consumed);
-                        break;
-                    }
-
-                    n_past++;
-                    n_session_consumed++;
-
-                    if (n_session_consumed >= (int)session_tokens.size()) {
-                        ++i;
-                        break;
-                    }
-                }
-                if (i > 0) {
-                    embd.erase(embd.begin(), embd.begin() + i);
-                }
-            }
-
-            for (int i = 0; i < (int)embd.size(); i += params.n_batch) {
-                int n_eval = (int)embd.size() - i;
-                if (n_eval > params.n_batch) {
-                    n_eval = params.n_batch;
-                }
-
-                LOG_DBG("eval: %s\n", string_from(ctx, embd).c_str());
-
-                if (llama_decode(ctx, llama_batch_get_one(&embd[i], n_eval))) {
-                    LOG_ERR("%s : failed to eval\n", __func__);
-                    const llama_perf_context_data timings = llama_perf_context(ctx);
-                    return_value.n_p_eval = timings.n_p_eval;
-                    return_value.n_eval = timings.n_eval;
-                    return_value.result = 4;
-                    return return_value;
-                }
-
-                n_past += n_eval;
-                LOG_DBG("n_past = %d\n", n_past);
-                LOG_DBG("\n\033[31mTokens consumed so far = %d / %d \033[0m\n", n_past, n_ctx);
-            }
-
-            if (!embd.empty() && !path_session.empty()) {
-                session_tokens.insert(session_tokens.end(), embd.begin(), embd.end());
-                n_session_consumed = (int) session_tokens.size();
-            }
-        }
-
-        embd.clear();
-
-        if ((int)embd_inp.size() <= n_consumed) {
-            // optionally save the session on first sample (for faster prompt loading next time)
-            if (!path_session.empty() && need_to_save_session && !params.prompt_cache_ro) {
-                need_to_save_session = false;
-                llama_state_save_file(ctx, path_session.c_str(), session_tokens.data(), session_tokens.size());
-
-                LOG_DBG("saved session to %s\n", path_session.c_str());
-            } 
-
-            if (params.prompt_cache_all == true && need_to_save_state == true && resuse_last_prompt_data == false) {
-                LOG_DBG("saving last used prompt data.\n");
-                need_to_save_state = false;
-                if (prompt_cache_data->last_processed_prompt_state != nullptr) {
-                    delete[] prompt_cache_data->last_processed_prompt_state;
-                }
-                const size_t state_size = llama_state_get_size(ctx);
-                prompt_cache_data->last_processed_prompt_state = new uint8_t[state_size];
-                prompt_cache_data->last_processed_prompt_state_size = state_size;
-                llama_state_get_data(ctx, prompt_cache_data->last_processed_prompt_state, state_size);
-                prompt_cache_data->last_prompt = params.prompt;
-                LOG_DBG("Adding to the processed_prompt_tokens vector %d tokens from embd_inp.\n", (int)embd_inp.size());
-                prompt_cache_data->processed_prompt_tokens.insert(prompt_cache_data->processed_prompt_tokens.end(), embd_inp.begin(),embd_inp.end());
-            }
-
-            const llama_token id = common_sampler_sample(smpl, ctx, -1);
-
-            common_sampler_accept(smpl, id, true);
-
-            // LOG_DBG("last: %s\n", string_from(ctx, smpl->prev.to_vector()).c_str());
-
-            embd.push_back(id);
-
-            // decrement remaining sampling budget
-            --n_remain;
-
-            LOG_DBG("n_remain: %d\n", n_remain);
-
-            // call the token callback with the newly predicted token
-            if (token_cb != NULL) {
-                auto token_str = common_token_to_piece(ctx, id, include_specials);
-                if (!token_cb(token_str.c_str())) {
-                    break;
-                }
-            }
-
-            for (auto id : embd) {
-                res += common_token_to_piece(ctx, id, include_specials);
-            }
-        } else {
-            // some user input remains from prompt or interaction, forward it to processing
-            LOG_DBG("embd_inp.size(): %d, n_consumed: %d\n", (int) embd_inp.size(), n_consumed);
-            while ((int) embd_inp.size() > n_consumed) {
-                embd.push_back(embd_inp[n_consumed]);
-
-                // push the prompt in the sampling context in order to apply repetition penalties later
-                // for the prompt, we don't apply grammar rules
-                common_sampler_accept(smpl, embd_inp[n_consumed], /* accept_grammar= */ false);
-
-                ++n_consumed;
-                if ((int) embd.size() >= params.n_batch) {
-                    break;
-                }
-            }
-        }
-
-        // if not currently processing queued inputs;
-        if ((int) embd_inp.size() <= n_consumed) {
-            // check for reverse prompt in the last n_prev tokens
-            if (!params.antiprompt.empty()) {
-                const int n_prev = 32;
-                const std::string last_output = common_sampler_prev_str(smpl, ctx, n_prev);
-
-                is_antiprompt = false;
-                // Check if each of the reverse prompts appears at the end of the output.
-                // If we're not running interactively, the reverse prompt might be tokenized with some following characters
-                // so we'll compensate for that by widening the search window a bit.
-                for (std::string & antiprompt : params.antiprompt) {
-                    size_t extra_padding = 2;
-                    size_t search_start_pos = last_output.length() > static_cast<size_t>(antiprompt.length() + extra_padding)
-                        ? last_output.length() - static_cast<size_t>(antiprompt.length() + extra_padding)
-                        : 0;
-
-                    if (last_output.find(antiprompt, search_start_pos) != std::string::npos) {
-                        is_antiprompt = true;
-                        break;
-                    }
-                }
-
-                // check for reverse prompt using special tokens
-                llama_token last_token = common_sampler_last(smpl);
-                for (std::vector<llama_token> ids : antiprompt_ids) {
-                    if (ids.size() == 1 && last_token == ids[0]) {
-                        is_antiprompt = true;
-                        break;
-                    }
-                }
-
-                if (is_antiprompt) {
-                    LOG_DBG("found antiprompt: %s\n", last_output.c_str());
-                }
-            }
-        }
-
-        // end of generation
-        if (llama_token_is_eog(model, common_sampler_last(smpl))) {
-            LOG_DBG(" [end of text]\n");
+        // do all the antiprompt testing and eog testing
+        int32_t eog = wooly_check_eog_and_antiprompt(simple_params, llama_context_ptr, llama_model_ptr, sampler_ptr);
+        if (eog > 0) {
             break;
         }
+
+        // calculate the next logits (expensive compute)
+        int32_t success = wooly_process_next_token(
+            llama_context_ptr, 
+            predicted_tokens[predicted]);
+
+        predicted++;
     }
 
-    if (!path_session.empty() && !params.prompt_cache_ro) {
-        LOG_INF("\n%s: saving final output to session file '%s'\n", __func__, path_session.c_str());
-        llama_state_save_file(ctx, path_session.c_str(), session_tokens.data(), session_tokens.size());
+    // convert our predicted tokens to a string and print the result
+    int64_t pred_str_len = wooly_llama_detokenize(
+        llama_context_ptr, 
+        include_specials, 
+        predicted_tokens, 
+        predicted, 
+        out_result, 
+        out_result_size);
+
+
+    int64_t t_eval_end_us = ggml_time_us();
+
+    // update the prediction statistics
+    int64_t t_end_us = ggml_time_us();
+    results.t_end_ms =  1e-3 * t_end_us;
+    results.t_start_ms =  1e-3 * t_start_us;
+    results.t_p_eval_ms = 1e-3 * (t_p_eval_end_us - t_start_us);
+    results.t_eval_ms = 1e-3 * (t_eval_end_us - t_p_eval_end_us);
+    results.n_p_eval = prompt_token_count;
+    results.n_eval = predicted;
+    results.prompt_cache = prompt_cache;
+    results.result = 0;
+
+
+    // free our allocated resources
+    wooly_free_sampler(sampler_ptr);
+    free(predicted_tokens);
+
+
+    // negative values get returned if the buffer isn't big enough, so return that
+    // as the error code.
+    if (pred_str_len < 0) {
+        results.result = pred_str_len;
+        return results;
     }
-
-    // build up the result structure with the success code and all the timing data
-    const llama_perf_context_data timings = llama_perf_context(ctx);
-    const double t_end_ms = 1e-3 * ggml_time_us();
-    return_value.result = 0;
-    return_value.t_start_ms = timings.t_start_ms;
-    return_value.t_end_ms = t_end_ms;
-    return_value.t_load_ms = timings.t_load_ms;
-    return_value.t_p_eval_ms = timings.t_p_eval_ms;
-    return_value.t_eval_ms = timings.t_eval_ms;
-    return_value.n_p_eval = timings.n_p_eval;
-    return_value.n_eval = timings.n_eval;
-
-    // copy at most out_result_size characters.
-    strncpy(out_result, res.c_str(), (size_t) out_result_size - 1);
-    out_result[out_result_size-1] = 0;
-
-    common_sampler_free(smpl);
-    ggml_threadpool_free(threadpool);
-    ggml_threadpool_free(threadpool_batch);   
-
-    return return_value;
+    
+    return results;
 }
 
 void 

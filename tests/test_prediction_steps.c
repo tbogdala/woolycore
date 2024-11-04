@@ -126,13 +126,11 @@ void test_predictions() {
             break;
         }
 
-        // only calculate the next logits (expensive compute) if we need to predict more
-        if (predicted < params.n_predict) {
-            int32_t success = wooly_process_next_token(
-                loaded_model.ctx, 
-                predicted_tokens[predicted]);
-            TEST_ASSERT_EQUAL(0, success);
-        }
+        // calculate the next logits (expensive compute)
+        int32_t success = wooly_process_next_token(
+            loaded_model.ctx, 
+            predicted_tokens[predicted]);
+        TEST_ASSERT_EQUAL(0, success);
 
         predicted++;
     }
@@ -204,13 +202,11 @@ void test_predictions() {
             break;
         }
 
-        // only calculate the next logits (expensive compute) if we need to predict more
-        if (predicted < params.n_predict) {
-            int32_t success = wooly_process_next_token(
-                loaded_model.ctx, 
-                predicted_tokens[predicted]);
-            TEST_ASSERT_EQUAL(0, success);
-        }
+        // calculate the next logits (expensive compute)
+        int32_t success = wooly_process_next_token(
+            loaded_model.ctx, 
+            predicted_tokens[predicted]);
+        TEST_ASSERT_EQUAL(0, success);
 
         predicted++;
     }
@@ -272,13 +268,11 @@ void test_predictions() {
             break;
         }
 
-        // only calculate the next logits (expensive compute) if we need to predict more
-        if (predicted < params.n_predict) {
-            int32_t success = wooly_process_next_token(
-                loaded_model.ctx, 
-                predicted_tokens[predicted]);
-            TEST_ASSERT_EQUAL(0, success);
-        }
+        // calculate the next logits (expensive compute)
+        int32_t success = wooly_process_next_token(
+            loaded_model.ctx, 
+            predicted_tokens[predicted]);
+        TEST_ASSERT_EQUAL(0, success);
 
         predicted++;
     }

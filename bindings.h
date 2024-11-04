@@ -39,7 +39,6 @@ typedef struct wooly_predict_result {
     // timing data
     double t_start_ms;
     double t_end_ms;
-    double t_load_ms;
     double t_p_eval_ms;
     double t_eval_ms;
 

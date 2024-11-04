@@ -1,4 +1,4 @@
-# woolycore (v0.2.0)
+# woolycore (v0.3.0)
 
 A thin C wrapper around the [llama.cpp library](https://github.com/ggerganov/llama.cpp), aiming for a high-level
 API that provides a surface to build FFI libraries on top of for other languages.
