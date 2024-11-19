@@ -625,16 +625,29 @@ wooly_predict(
     // note: this will remain zero if the prompt cache is used.
     int32_t prompt_token_count = 0;
 
+    bool cache_used = false;
     wooly_process_prompt_results prompt_results;
     void* prompt_cache = prompt_cache_ptr;
     if (prompt_cache != NULL) {
-        // restore prediction state from the prompt cache
-        prompt_results = wooly_defrost_prediction_state(
-            simple_params, 
-            llama_context_ptr, 
-            llama_model_ptr,
-            prompt_cache);
-    } else {
+        // check to see if the prompts are equal and if they are, restore the cached state.
+        // if it is not a match, then
+        llama_predict_prompt_cache* prev_cache = static_cast<llama_predict_prompt_cache*>(prompt_cache);
+        if (prev_cache->last_prompt == simple_params.prompt) {
+            // restore prediction state from the prompt cache
+            prompt_results = wooly_defrost_prediction_state(
+                simple_params, 
+                llama_context_ptr, 
+                llama_model_ptr,
+                prompt_cache);
+            cache_used = true;
+        } else {
+            // don't use the cache, but since this was passed in by the client,
+            // the client is responsible for freeing it.
+            prompt_cache = NULL;
+            cache_used = false;
+        }
+    } 
+    if (!cache_used) {
         // get the prompt ingested into the context and pull the sampler
         // used in the process so that repeat penalties and such are
         // accounted for.
