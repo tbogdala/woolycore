@@ -388,14 +388,14 @@ wooly_process_prompt(
 
 
     // setup the sampler to be used while ingesting the prompt
-    common_sampler* smpl = common_sampler_init(model, params.sparams);
+    common_sampler* smpl = common_sampler_init(model, params.sampling);
     if (!smpl) {
         LOG_ERR("%s: failed to initialize sampling subsystem\n",  __func__);
         return_value.result = -5;
         return return_value;
     }
     LOG_INF("sampling seed: %u\n", common_sampler_get_seed(smpl));
-    LOG_INF("sampling params: \n%s\n", params.sparams.print().c_str());
+    LOG_INF("sampling params: \n%s\n", params.sampling.print().c_str());
     LOG_INF("sampler chain: \n%s\n", common_sampler_print(smpl).c_str());
     LOG_INF("batch size n_batch = %d\n",params.n_batch);
     LOG_INF("\n\n");
@@ -583,7 +583,7 @@ wooly_defrost_prediction_state(
     // build up a new sampler for the parameters provided
     common_params params;
     fill_params_from_simple(&simple_params, &params);
-    common_sampler* smpl = common_sampler_init(model, params.sparams);
+    common_sampler* smpl = common_sampler_init(model, params.sampling);
     if (!smpl) {
         LOG_ERR("%s: failed to initialize sampling subsystem\n",  __func__);
         return_value.result = -1;
@@ -775,7 +775,7 @@ wooly_new_gpt_params()
     output.prompt = nullptr;
     output.antiprompts = nullptr;
     output.antiprompt_count = 0;
-    output.seed = prototype.sparams.seed;
+    output.seed = prototype.sampling.seed;
     output.n_threads = prototype.cpuparams.n_threads;
     output.n_threads_batch = prototype.cpuparams_batch.n_threads;
     output.n_predict = prototype.n_predict;
@@ -796,36 +796,35 @@ wooly_new_gpt_params()
     output.yarn_orig_ctx = prototype.yarn_orig_ctx;
     output.rope_scaling_type = prototype.rope_scaling_type;
     output.prompt_cache_all = prototype.prompt_cache_all;
-    output.ignore_eos = prototype.sparams.ignore_eos;
+    output.ignore_eos = prototype.sampling.ignore_eos;
     output.flash_attn = prototype.flash_attn;
 
     output.embedding = prototype.embedding;
     output.embd_normalize = prototype.embd_normalize;
 
-    output.top_k = prototype.sparams.top_k;
-    output.top_p = prototype.sparams.top_p;
-    output.min_p = prototype.sparams.min_p;
-    output.xtc_probability = prototype.sparams.xtc_probability;
-    output.xtc_threshold = prototype.sparams.xtc_threshold;
-    output.tfs_z = prototype.sparams.tfs_z;
-    output.typical_p = prototype.sparams.typ_p;
-    output.temp = prototype.sparams.temp;
-    output.dynatemp_range = prototype.sparams.dynatemp_range;
-    output.dynatemp_exponent = prototype.sparams.dynatemp_exponent;
-    output.penalty_last_n = prototype.sparams.penalty_last_n;
-    output.penalty_repeat = prototype.sparams.penalty_repeat;
-    output.penalty_freq = prototype.sparams.penalty_freq;
-    output.penalty_present = prototype.sparams.penalty_present;
-    output.dry_multiplier = prototype.sparams.dry_multiplier;
-    output.dry_base = prototype.sparams.dry_base;
-    output.dry_allowed_length = prototype.sparams.dry_allowed_length;
-    output.dry_penalty_last_n = prototype.sparams.dry_penalty_last_n;
+    output.top_k = prototype.sampling.top_k;
+    output.top_p = prototype.sampling.top_p;
+    output.min_p = prototype.sampling.min_p;
+    output.xtc_probability = prototype.sampling.xtc_probability;
+    output.xtc_threshold = prototype.sampling.xtc_threshold;
+    output.typical_p = prototype.sampling.typ_p;
+    output.temp = prototype.sampling.temp;
+    output.dynatemp_range = prototype.sampling.dynatemp_range;
+    output.dynatemp_exponent = prototype.sampling.dynatemp_exponent;
+    output.penalty_last_n = prototype.sampling.penalty_last_n;
+    output.penalty_repeat = prototype.sampling.penalty_repeat;
+    output.penalty_freq = prototype.sampling.penalty_freq;
+    output.penalty_present = prototype.sampling.penalty_present;
+    output.dry_multiplier = prototype.sampling.dry_multiplier;
+    output.dry_base = prototype.sampling.dry_base;
+    output.dry_allowed_length = prototype.sampling.dry_allowed_length;
+    output.dry_penalty_last_n = prototype.sampling.dry_penalty_last_n;
     output.dry_sequence_breakers = nullptr;
     output.dry_sequence_breakers_count = 0;
-    output.mirostat = prototype.sparams.mirostat;
-    output.mirostat_tau = prototype.sparams.mirostat_tau;
-    output.mirostat_eta = prototype.sparams.mirostat_eta;
-    output.penalize_nl = prototype.sparams.penalize_nl;
+    output.mirostat = prototype.sampling.mirostat;
+    output.mirostat_tau = prototype.sampling.mirostat_tau;
+    output.mirostat_eta = prototype.sampling.mirostat_eta;
+    output.penalize_nl = prototype.sampling.penalize_nl;
     output.grammar = nullptr;
 
     return output;
@@ -844,7 +843,7 @@ fill_params_from_simple(
         output->antiprompt = create_vector(simple->antiprompts, simple->antiprompt_count);
     }
 
-    output->sparams.seed = simple->seed;
+    output->sampling.seed = simple->seed;
     output->cpuparams.n_threads = simple->n_threads;
     if (output->cpuparams.n_threads < 1) {
         output->cpuparams.n_threads = cpu_get_num_math();
@@ -871,40 +870,39 @@ fill_params_from_simple(
     output->yarn_orig_ctx = simple->yarn_orig_ctx;
     output->rope_scaling_type = (llama_rope_scaling_type) simple->rope_scaling_type;
     output->prompt_cache_all = simple->prompt_cache_all;
-    output->sparams.ignore_eos = simple->ignore_eos;
+    output->sampling.ignore_eos = simple->ignore_eos;
     output->flash_attn = simple->flash_attn;
 
     output->embedding = simple->embedding;
     output->embd_normalize = simple->embd_normalize;
 
-    output->sparams.top_k = simple->top_k;
-    output->sparams.top_p = simple->top_p;
-    output->sparams.min_p = simple->min_p;
-    output->sparams.xtc_probability = simple->xtc_probability;
-    output->sparams.xtc_threshold = simple->xtc_threshold;
-    output->sparams.tfs_z = simple->tfs_z;
-    output->sparams.typ_p = simple->typical_p;
-    output->sparams.temp = simple->temp;
-    output->sparams.dynatemp_range = simple->dynatemp_range;
-    output->sparams.dynatemp_exponent = simple->dynatemp_exponent;
-    output->sparams.penalty_last_n = simple->penalty_last_n;
-    output->sparams.penalty_repeat = simple->penalty_repeat;
-    output->sparams.penalty_freq = simple->penalty_freq;
-    output->sparams.penalty_present = simple->penalty_present;
-    output->sparams.dry_multiplier = simple->dry_multiplier;
-    output->sparams.dry_base = simple->dry_base;
-    output->sparams.dry_allowed_length = simple->dry_allowed_length;
-    output->sparams.dry_penalty_last_n = simple->dry_penalty_last_n;
+    output->sampling.top_k = simple->top_k;
+    output->sampling.top_p = simple->top_p;
+    output->sampling.min_p = simple->min_p;
+    output->sampling.xtc_probability = simple->xtc_probability;
+    output->sampling.xtc_threshold = simple->xtc_threshold;
+    output->sampling.typ_p = simple->typical_p;
+    output->sampling.temp = simple->temp;
+    output->sampling.dynatemp_range = simple->dynatemp_range;
+    output->sampling.dynatemp_exponent = simple->dynatemp_exponent;
+    output->sampling.penalty_last_n = simple->penalty_last_n;
+    output->sampling.penalty_repeat = simple->penalty_repeat;
+    output->sampling.penalty_freq = simple->penalty_freq;
+    output->sampling.penalty_present = simple->penalty_present;
+    output->sampling.dry_multiplier = simple->dry_multiplier;
+    output->sampling.dry_base = simple->dry_base;
+    output->sampling.dry_allowed_length = simple->dry_allowed_length;
+    output->sampling.dry_penalty_last_n = simple->dry_penalty_last_n;
     if (simple->dry_sequence_breakers_count > 0)
     {
-        output->sparams.dry_sequence_breakers = create_vector(simple->dry_sequence_breakers, simple->dry_sequence_breakers_count);
+        output->sampling.dry_sequence_breakers = create_vector(simple->dry_sequence_breakers, simple->dry_sequence_breakers_count);
     }
-    output->sparams.mirostat = simple->mirostat;
-    output->sparams.mirostat_tau = simple->mirostat_tau;
-    output->sparams.mirostat_eta = simple->mirostat_eta;
-    output->sparams.penalize_nl = simple->penalize_nl;
+    output->sampling.mirostat = simple->mirostat;
+    output->sampling.mirostat_tau = simple->mirostat_tau;
+    output->sampling.mirostat_eta = simple->mirostat_eta;
+    output->sampling.penalize_nl = simple->penalize_nl;
     if (simple->grammar != nullptr) {
-        output->sparams.grammar = simple->grammar;
+        output->sampling.grammar = simple->grammar;
     }
 }
 

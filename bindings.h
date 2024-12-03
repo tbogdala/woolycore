@@ -158,7 +158,6 @@ typedef struct wooly_gpt_params {
     float       min_p;                  // 0.0 = disabled
     float       xtc_probability;        // 0.0 = disabled
     float       xtc_threshold;          // > 0.5 disables XTC
-    float       tfs_z;                  // 1.0 = disabled
     float       typical_p;              // 1.0 = disabled
     float       temp;                   // <= 0.0 to sample greedily, 0.0 to not output probabilities
     float       dynatemp_range;         // 0.0 = disabled

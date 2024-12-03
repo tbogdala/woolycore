@@ -4,6 +4,7 @@
 
 * The `wooly_predict_result` struct had `t_load_us` removed since that was only relevant during model loading.
 * If `wooly_predict()` uses the `prompt_cache_ptr` param, `n_p_eval` will be 0.
+* The `wooly_gpt_params` struct had `tfs_z` removed since it was removed upstream.
 
 
 ## v0.2.0
