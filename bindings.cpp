@@ -113,13 +113,13 @@ wooly_load_model(
     llama_context_params context_params = conv_wooly_to_llama_context_params(wooly_context_params);
     try
     {
-        model = llama_load_model_from_file(fname, model_params);
+        model = llama_model_load_from_file(fname, model_params);
         if (model == NULL) {
             return res;
         }
-	    lctx = llama_new_context_with_model(model, context_params);
+	    lctx = llama_init_from_model(model, context_params);
         if (lctx == NULL) {
-            llama_free_model(model);
+            llama_model_free(model);
             return res;
         }
     }
@@ -127,16 +127,17 @@ wooly_load_model(
     {
         LOG_ERR("failed %s", e.what());
         llama_free(lctx);
-        llama_free_model(model);
+        llama_model_free(model);
         return res;
     }
 
     {
         LOG_WRN("warming up the model with an empty run\n");
 
-         std::vector<llama_token> tmp;
-        llama_token bos = llama_token_bos(model);
-        llama_token eos = llama_token_eos(model);
+        const llama_vocab *vocab = llama_model_get_vocab(model);
+        std::vector<llama_token> tmp;
+        llama_token bos = llama_vocab_bos(vocab);
+        llama_token eos = llama_vocab_eos(vocab);
         // some models (e.g. T5) don't have a BOS token
         if (bos != LLAMA_TOKEN_NULL) {
             tmp.push_back(bos);
@@ -179,7 +180,7 @@ wooly_free_model(
     llama_context *ctx = (llama_context *) llama_context_ptr; 
     llama_model *model = (llama_model *) llama_model_ptr;
     if (model != NULL) {
-        llama_free_model(model);
+        llama_model_free(model);
     }
     if (ctx != NULL) {
         llama_free(ctx);
@@ -273,7 +274,7 @@ wooly_process_prompt(
 
 
     // Do a basic set of warnings based on incoming parameters
-    const int n_ctx_train = llama_n_ctx_train(model);
+    const int n_ctx_train = llama_model_n_ctx_train(model);
     const int n_ctx = llama_n_ctx(ctx);
     if (n_ctx > n_ctx_train) {
         LOG_WRN("%s: warning: model was trained on only %d context tokens (%d specified)\n", __func__, n_ctx_train, n_ctx);
@@ -334,9 +335,10 @@ wooly_process_prompt(
 
 
     // should we add the bos?
-    const bool add_bos = llama_add_bos_token(model);
+    const llama_vocab *vocab = llama_model_get_vocab(model);
+    const bool add_bos = llama_vocab_get_add_bos(vocab);
     if (!llama_model_has_encoder(model)) {
-        GGML_ASSERT(!llama_add_eos_token(model));
+        GGML_ASSERT(!llama_vocab_get_add_eos(vocab));
     }
     LOG_DBG("n_ctx: %d, add_bos: %d\n", n_ctx, add_bos);
 
@@ -355,7 +357,7 @@ wooly_process_prompt(
         // with a newline character, but this should be considered a 
         // fallback and should be fixed in the calling client code.
         if (add_bos) {
-            prompt_tokens.push_back(llama_token_bos(model));
+            prompt_tokens.push_back(llama_vocab_bos(vocab));
             LOG_WRN("%s: prompt_tokens was considered empty and bos was added: %s\n", 
                 __func__, string_from(ctx, prompt_tokens).c_str());
         } else {
@@ -472,7 +474,8 @@ wooly_check_eog_and_antiprompt(
     common_sampler *smpl = static_cast<common_sampler *>(sampler_ptr);
  
     // first, we check against the model's end of generation tokens
-    if (llama_token_is_eog(model, common_sampler_last(smpl))) {
+    const llama_vocab *vocab = llama_model_get_vocab(model);
+    if (llama_vocab_is_eog(vocab, common_sampler_last(smpl))) {
         return 1;
     }
 
@@ -541,9 +544,10 @@ wooly_freeze_prediction_state(
     }
 
     // tokenize the prompt
-    const bool add_bos = llama_add_bos_token(model);
+    const llama_vocab *vocab = llama_model_get_vocab(model);
+    const bool add_bos = llama_vocab_get_add_bos(vocab);
     if (!llama_model_has_encoder(model)) {
-        GGML_ASSERT(!llama_add_eos_token(model));
+        GGML_ASSERT(!llama_vocab_get_add_eos(vocab));
     }
 
     // tokenize the prompt
@@ -824,7 +828,6 @@ wooly_new_gpt_params()
     output.mirostat = prototype.sampling.mirostat;
     output.mirostat_tau = prototype.sampling.mirostat_tau;
     output.mirostat_eta = prototype.sampling.mirostat_eta;
-    output.penalize_nl = prototype.sampling.penalize_nl;
     output.grammar = nullptr;
 
     return output;
@@ -900,7 +903,6 @@ fill_params_from_simple(
     output->sampling.mirostat = simple->mirostat;
     output->sampling.mirostat_tau = simple->mirostat_tau;
     output->sampling.mirostat_eta = simple->mirostat_eta;
-    output->sampling.penalize_nl = simple->penalize_nl;
     if (simple->grammar != nullptr) {
         output->sampling.grammar = simple->grammar;
     }
@@ -1010,20 +1012,20 @@ conv_wooly_to_llama_context_params(wooly_llama_context_params wooly_params)
 int32_t 
 wooly_llama_n_embd(void *llama_model_ptr) 
 {
-    return llama_n_embd((const llama_model *)llama_model_ptr);
+    return llama_model_n_embd((const llama_model *)llama_model_ptr);
 }
 
 int64_t
 wooly_llama_tokenize(
-    void *llama_model_ptr, 
+    void *llama_ctx_ptr, 
     const char* text,
     bool add_special,
     bool parse_special,
     int32_t* out_tokens,
     int64_t out_tokens_size)
 {
-    auto tokens = ::common_tokenize(
-        (const llama_model *)llama_model_ptr, 
+    auto tokens = common_tokenize(
+        (const llama_context *)llama_ctx_ptr, 
         text, 
         add_special, 
         parse_special);

@@ -159,11 +159,11 @@ void test_embeddings() {
     std::vector<std::vector<int32_t>> tokenized_prompts;
     for (const auto & prompt : prompts) {
         // we do the tokenization with the original llama call
-        auto llama_tokens = ::common_tokenize(static_cast<const llama_model *>(loaded_model.model), prompt.c_str(), true, true);
+        auto llama_tokens = common_tokenize(static_cast<const llama_context *>(loaded_model.ctx), prompt.c_str(), true, true);
 
         // and then use our wrapped library
         size_t num_of_tokens = wooly_llama_tokenize(
-            loaded_model.model, 
+            loaded_model.ctx, 
             prompt.c_str(), 
             true, 
             false,

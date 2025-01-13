@@ -175,7 +175,6 @@ typedef struct wooly_gpt_params {
     int32_t     mirostat;               // 0 = disabled, 1 = mirostat, 2 = mirostat 2.0
     float       mirostat_tau;           // target entropy
     float       mirostat_eta;           // learning rate
-    bool        penalize_nl;            // consider newlines as a repeatable token
 
     const char* grammar;
 
@@ -336,7 +335,7 @@ wooly_llama_n_embd(
 // the function simply returns the number of tokens for the `text`.
 LLAMA_API int64_t
 wooly_llama_tokenize(
-    void *llama_model_ptr, 
+    void *llama_ctx_ptr, 
     const char* text,
     bool add_special,
     bool parse_special,
