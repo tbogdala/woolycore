@@ -2,8 +2,9 @@
 
 ## v0.4.0
 
-* BREAKING: `wooly_llama_tokenize` now takes a `void*` representing the context and NOT the model! Because
-  this is a `void*`, this won't get caught by the compiler! Passing the wrong one will result in a crash.
+* BREAKING: All `void*` parameters got type aliases to empty structs to provide some type safety
+  for the external API. This change has been brewing for some time and is the only major break
+  for the near future.
 
 * breaking: `penalize_nl` was removed from `wooly_gpt_params` as it was removed upstream in llama.cpp.
 

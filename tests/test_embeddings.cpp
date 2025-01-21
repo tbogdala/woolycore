@@ -159,7 +159,7 @@ void test_embeddings() {
     std::vector<std::vector<int32_t>> tokenized_prompts;
     for (const auto & prompt : prompts) {
         // we do the tokenization with the original llama call
-        auto llama_tokens = common_tokenize(static_cast<const llama_context *>(loaded_model.ctx), prompt.c_str(), true, true);
+        auto llama_tokens = common_tokenize((llama_context *)loaded_model.ctx, prompt.c_str(), true, true);
 
         // and then use our wrapped library
         size_t num_of_tokens = wooly_llama_tokenize(
@@ -245,7 +245,7 @@ void test_embeddings() {
         // encode if at capacity
         if (batch.n_tokens + n_toks > context_params.n_batch) {
             float * out = emb + e * n_embd;
-            batch_decode_embeddings(static_cast<llama_context *>(loaded_model.ctx), batch, out, s, n_embd, embd_normalize);
+            batch_decode_embeddings((llama_context *)loaded_model.ctx, batch, out, s, n_embd, embd_normalize);
             e += context_params.pooling_type == LLAMA_POOLING_TYPE_NONE ? batch.n_tokens : s;
             s = 0;
             common_batch_clear(batch);
@@ -258,7 +258,7 @@ void test_embeddings() {
 
     // final batch - after this our embeddings vector should be fully populated
     float * out = emb + e * n_embd;
-    batch_decode_embeddings(static_cast<llama_context *>(loaded_model.ctx), batch, out, s, n_embd, embd_normalize);
+    batch_decode_embeddings((llama_context *)loaded_model.ctx, batch, out, s, n_embd, embd_normalize);
 
     // **** Switch over to testing the Woolycore API ****
 

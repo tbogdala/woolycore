@@ -23,10 +23,17 @@ extern "C"
 #include <stdint.h>
 #include <stdbool.h>
 
+// Define type aliases for void* pointers
+typedef struct wooly_llama_context_s wooly_llama_context_t;
+typedef struct wooly_llama_model_s wooly_llama_model_t;
+typedef struct wooly_sampler_s wooly_sampler_t;
+typedef struct wooly_prompt_cache_s wooly_prompt_cache_t;
+
+
 typedef struct wooly_load_model_result {
-    void* model;
-    void* ctx;
-    uint32_t context_length;
+    wooly_llama_model_t*    model;
+    wooly_llama_context_t*  ctx;
+    uint32_t                context_length;
 } wooly_load_model_result;
 
 typedef struct wooly_predict_result {
@@ -34,7 +41,7 @@ typedef struct wooly_predict_result {
     int32_t result;
 
     // a pointer to llama_predict_prompt_cache, which is opaque to the bindings.
-    void* prompt_cache;
+    wooly_prompt_cache_t* prompt_cache;
     
     // timing data
     double t_start_ms;
@@ -53,7 +60,7 @@ typedef struct wooly_process_prompt_results {
 
     // this is the sampler created while ingesting the prompt
     // and can be used for further prediction.
-    void* gpt_sampler;
+    wooly_sampler_t* gpt_sampler;
 } wooly_process_prompt_results;
 
 
@@ -199,8 +206,8 @@ wooly_load_model(
 // frees the memory needed by the model and unloads it from memory.
 LLAMA_API void 
 wooly_free_model(
-    void *llama_context_ptr, 
-    void *llama_model_ptr);
+    wooly_llama_context_t*  llama_context_ptr, 
+    wooly_llama_model_t*    llama_model_ptr);
 
 // gets a new set of text generation parameters that is a reduced set of
 // parameters that upstream llama.cpp uses. 
@@ -213,30 +220,30 @@ wooly_new_gpt_params();
 // prompt and the `gpt_sampler` that was created for ingestion.
 LLAMA_API wooly_process_prompt_results 
 wooly_process_prompt(
-    wooly_gpt_params simple_params, 
-    void *llama_context_ptr, 
-    void *llama_model_ptr);
+    wooly_gpt_params        simple_params, 
+    wooly_llama_context_t*  llama_context_ptr, 
+    wooly_llama_model_t*    llama_model_ptr);
 
 // takes a context that already has been through `wooly_process_prompt()` to 
 // process prompt tokens and takes the sampler returned from that function call
 // to process the `additiona_prompt` string as more prompt tokens.
 LLAMA_API int32_t
 wooly_process_additional_prompt(
-    void *llama_context_ptr, 
-    void *llama_model_ptr,
-    void *sampler_ptr,
-    const char* additional_prompt);
+    wooly_llama_context_t*  llama_context_ptr, 
+    wooly_llama_model_t*    llama_model_ptr,
+    wooly_sampler_t*        sampler_ptr,
+    const char*             additional_prompt);
 
 // takes the `common_sampler` pointer returned in `wooly_process_prompt_results`
 // from calling functions like `wooly_process_prompt` and frees the memory.
 LLAMA_API void 
 wooly_free_sampler(
-    void *sampler_ptr);
+    wooly_sampler_t* sampler_ptr);
 
 // this function computes a prediction after adding the `next_token` to the context.
 LLAMA_API int32_t
 wooly_process_next_token(
-    void *llama_context_ptr, 
+    wooly_llama_context_t* llama_context_ptr, 
     int32_t next_token);
 
 // takes the loaded model context and the sample parameters as well as a
@@ -244,8 +251,8 @@ wooly_process_next_token(
 // and samples the next token and then returns it.
 int32_t
 wooly_sample_next(
-    void *llama_context_ptr, 
-    void *sampler_ptr);
+    wooly_llama_context_t* llama_context_ptr, 
+    wooly_sampler_t* sampler_ptr);
 
 // checks the last bit of sampled tokens to see if any antiprompts have been
 // encoutered - if so, 2 is returned. if the last token is the end-of-generation
@@ -253,10 +260,10 @@ wooly_sample_next(
 // have been found, 0 is returned.
 int32_t
 wooly_check_eog_and_antiprompt(
-    wooly_gpt_params simple_params, 
-    void *llama_context_ptr, 
-    void *llama_model_ptr, 
-    void *sampler_ptr);
+    wooly_gpt_params        simple_params, 
+    wooly_llama_context_t*  llama_context_ptr, 
+    wooly_llama_model_t*    llama_model_ptr, 
+    wooly_sampler_t*        sampler_ptr);
 
 
 // this function 'freezes' a prediction state returning a pointer to an internal
@@ -266,13 +273,13 @@ wooly_check_eog_and_antiprompt(
 // additionally `predicted_tokens` can be NULL or a pointer to a `predicted_token_count`
 // length array of ints that can be tacked onto the prompt tokens to allow for
 // freezing a state after prediction.
-void*
+wooly_prompt_cache_t*
 wooly_freeze_prediction_state(
-    wooly_gpt_params simple_params,
-    void *llama_context_ptr,
-    void *llama_model_ptr,
-    int32_t *predicted_tokens,
-    int64_t predicted_token_count);
+    wooly_gpt_params        simple_params,
+    wooly_llama_context_t*  llama_context_ptr,
+    wooly_llama_model_t*    llama_model_ptr,
+    int32_t*                predicted_tokens,
+    int64_t                 predicted_token_count);
 
 
 // this function restores the frozen state data to the context provided
@@ -284,10 +291,10 @@ wooly_freeze_prediction_state(
 // sampler to user in `gpt_sampler`.
 wooly_process_prompt_results
 wooly_defrost_prediction_state(
-    wooly_gpt_params simple_params,
-    void *llama_context_ptr, 
-    void *llama_model_ptr, 
-    void *prompt_cache_ptr);
+    wooly_gpt_params        simple_params,
+    wooly_llama_context_t*  llama_context_ptr, 
+    wooly_llama_model_t*    llama_model_ptr, 
+    wooly_prompt_cache_t*   prompt_cache_ptr);
 
 // run a text prediction base on the `simple_params` passed in, which is a reduced
 // set of parameters upstream llama.cpp uses. `out_result` is a `char` buffer that
@@ -299,19 +306,19 @@ wooly_defrost_prediction_state(
 LLAMA_API wooly_predict_result 
 wooly_predict(
     wooly_gpt_params simple_params, 
-    void *llama_context_ptr, 
-    void *llama_model_ptr, 
-    bool include_specials, 
-    char *out_result, 
-    int64_t out_result_size,
-    void* prompt_cache_ptr, 
+    wooly_llama_context_t*      llama_context_ptr, 
+    wooly_llama_model_t*        llama_model_ptr, 
+    bool                        include_specials, 
+    char *                      out_result, 
+    int64_t                     out_result_size,
+    wooly_prompt_cache_t*       prompt_cache_ptr, 
     wooly_token_update_callback token_cb);    
 
 // free the pointer returned in wooly_predict_result from llama_predict().
 // only needed if you're not intending to use the prompt cache feature
 LLAMA_API void 
 wooly_free_prompt_cache(
-    void *prompt_cache_ptr);
+    wooly_prompt_cache_t* prompt_cache_ptr);
 
 // creates a new set of model parameters based on the defaults 
 // of upstream llama.cpp.
@@ -326,7 +333,7 @@ wooly_get_default_llama_context_params();
 // returns the size of the embedding vectors used by the model.
 LLAMA_API int32_t 
 wooly_llama_n_embd(
-    void *llama_model_ptr
+    wooly_llama_model_t* llama_model_ptr
 );
 
 // tokenizes the `text` passed in. if `out_tokens` is not null, then it
@@ -335,12 +342,12 @@ wooly_llama_n_embd(
 // the function simply returns the number of tokens for the `text`.
 LLAMA_API int64_t
 wooly_llama_tokenize(
-    void *llama_ctx_ptr, 
-    const char* text,
-    bool add_special,
-    bool parse_special,
-    int32_t* out_tokens,
-    int64_t out_tokens_size
+    wooly_llama_context_t*     llama_ctx_ptr, 
+    const char*                 text,
+    bool                        add_special,
+    bool                        parse_special,
+    int32_t*                    out_tokens,
+    int64_t                     out_tokens_size
 );
 
 // detokenizes an array of tokens passed in to a string in the `out_result`
@@ -350,12 +357,12 @@ wooly_llama_tokenize(
 // value of is the buffer size needed to hold the result.
 LLAMA_API int64_t 
 wooly_llama_detokenize(
-    void *llama_context_ptr, 
-    bool render_specials, 
-    int32_t* tokens,
-    int64_t tokens_size,
-    char *out_result, 
-    int64_t out_result_size);    
+    wooly_llama_context_t*      llama_context_ptr, 
+    bool                        render_specials, 
+    int32_t*                    tokens,
+    int64_t                     tokens_size,
+    char *                      out_result, 
+    int64_t                     out_result_size);    
 
 
 // calculates embeddings for the given token arrays. 
@@ -389,16 +396,16 @@ wooly_llama_detokenize(
 //  is not big enough; getting the abs() of the return value will yield the size needed.
 LLAMA_API int64_t
 wooly_llama_make_embeddings(
-    void *llama_model_ptr,
-    void *llama_context_ptr,
-    int32_t batch_size,
-    int32_t pooling_type,
-    int32_t embd_normalize,
-    int64_t token_array_count,
-    int32_t** token_arrays,
-    int64_t* token_array_sizes,
-    float* output_embeddings,
-    int64_t output_embeddings_size
+    wooly_llama_model_t*    llama_model_ptr,
+    wooly_llama_context_t*  llama_context_ptr,
+    int32_t                 batch_size,
+    int32_t                 pooling_type,
+    int32_t                 embd_normalize,
+    int64_t                 token_array_count,
+    int32_t**               token_arrays,
+    int64_t*                token_array_sizes,
+    float*                  output_embeddings,
+    int64_t                 output_embeddings_size
 );
 
 #ifdef __cplusplus

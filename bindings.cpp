@@ -166,16 +166,16 @@ wooly_load_model(
         llama_perf_context_reset(lctx);
     }
 
-    res.ctx = lctx;
-    res.model = model;
+    res.ctx = (wooly_llama_context_t*) lctx;
+    res.model = (wooly_llama_model_t*) model;
     res.context_length = llama_n_ctx(lctx);
     return res;
 }
 
 void 
 wooly_free_model(
-    void *llama_context_ptr, 
-    void *llama_model_ptr)
+    wooly_llama_context_t* llama_context_ptr, 
+    wooly_llama_model_t* llama_model_ptr)
 {
     llama_context *ctx = (llama_context *) llama_context_ptr; 
     llama_model *model = (llama_model *) llama_model_ptr;
@@ -189,10 +189,10 @@ wooly_free_model(
 
 void 
 wooly_free_sampler(
-    void *sampler_ptr)
+    wooly_sampler_t* sampler_ptr)
 {
     if (sampler_ptr != NULL) {
-        common_sampler *smpl = static_cast<common_sampler *>(sampler_ptr);
+        common_sampler *smpl = (common_sampler *)(sampler_ptr);
         common_sampler_free(smpl);
     }
 }
@@ -200,10 +200,10 @@ wooly_free_sampler(
 
 int32_t
 wooly_process_additional_prompt(
-    void *llama_context_ptr, 
-    void *llama_model_ptr,
-    void *sampler_ptr,
-    const char* additional_prompt)
+    wooly_llama_context_t*  llama_context_ptr, 
+    wooly_llama_model_t*    llama_model_ptr,
+    wooly_sampler_t*        sampler_ptr,
+    const char*             additional_prompt)
 {
     // sanity check additional prompt input string
     if (additional_prompt == NULL || strlen(additional_prompt) <= 0) {
@@ -215,9 +215,9 @@ wooly_process_additional_prompt(
     // or change, dealing with BOS token additon, checking for context overflow,
     // sampler initialization ...
 
-    llama_context *ctx = static_cast<llama_context *>(llama_context_ptr); 
-    llama_model *model = static_cast<llama_model *>(llama_model_ptr);
-    common_sampler *smpl = static_cast<common_sampler *>(sampler_ptr);
+    llama_context *ctx = (llama_context *)llama_context_ptr; 
+    llama_model *model = (llama_model *)llama_model_ptr;
+    common_sampler *smpl = (common_sampler *)sampler_ptr;
 
     // tokenize the additional prompt text
     std::vector<llama_token> prompt_tokens;
@@ -261,13 +261,13 @@ wooly_process_additional_prompt(
 
 wooly_process_prompt_results 
 wooly_process_prompt(
-    wooly_gpt_params simple_params, 
-    void *llama_context_ptr, 
-    void *llama_model_ptr) 
+    wooly_gpt_params        simple_params, 
+    wooly_llama_context_t*  llama_context_ptr, 
+    wooly_llama_model_t*    llama_model_ptr) 
 {
     wooly_process_prompt_results return_value;
-    llama_context *ctx = static_cast<llama_context *>(llama_context_ptr); 
-    llama_model *model = static_cast<llama_model *>(llama_model_ptr);
+    llama_context *ctx = (llama_context *)llama_context_ptr; 
+    llama_model *model = (llama_model *)llama_model_ptr;
 
     common_params params;
     fill_params_from_simple(&simple_params, &params);
@@ -429,17 +429,17 @@ wooly_process_prompt(
     }
 
     return_value.result = n_consumed;
-    return_value.gpt_sampler = smpl;
+    return_value.gpt_sampler = (wooly_sampler_t*) smpl;
     return return_value;
 }
 
 int32_t
 wooly_sample_next(
-    void *llama_context_ptr, 
-    void *sampler_ptr) 
+    wooly_llama_context_t* llama_context_ptr, 
+    wooly_sampler_t* sampler_ptr) 
 {
-    llama_context *ctx = static_cast<llama_context *>(llama_context_ptr); 
-    common_sampler *smpl = static_cast<common_sampler *>(sampler_ptr);
+    llama_context *ctx = (llama_context *)llama_context_ptr; 
+    common_sampler *smpl = (common_sampler *)sampler_ptr;
 
     const llama_token id = common_sampler_sample(smpl, ctx, -1);
     common_sampler_accept(smpl, id, true);
@@ -450,10 +450,10 @@ wooly_sample_next(
 
 int32_t
 wooly_process_next_token(
-    void *llama_context_ptr, 
+    wooly_llama_context_t* llama_context_ptr, 
     int32_t next_token)
 {
-    llama_context *ctx = static_cast<llama_context *>(llama_context_ptr); 
+    llama_context *ctx = (llama_context *)llama_context_ptr; 
     if (llama_decode(ctx, llama_batch_get_one(&next_token, 1))) {
         LOG_ERR("%s : failed to evaluate the next token\n", __func__);
         return -1;
@@ -465,13 +465,13 @@ wooly_process_next_token(
 int32_t
 wooly_check_eog_and_antiprompt(
     wooly_gpt_params simple_params, 
-    void *llama_context_ptr, 
-    void *llama_model_ptr, 
-    void *sampler_ptr) 
+    wooly_llama_context_t* llama_context_ptr, 
+    wooly_llama_model_t* llama_model_ptr, 
+    wooly_sampler_t* sampler_ptr) 
 {
-    llama_context *ctx = static_cast<llama_context *>(llama_context_ptr); 
-    llama_model *model = static_cast<llama_model *>(llama_model_ptr); 
-    common_sampler *smpl = static_cast<common_sampler *>(sampler_ptr);
+    llama_model *model = (llama_model *)llama_model_ptr; 
+    llama_context *ctx = (llama_context *)llama_context_ptr; 
+    common_sampler *smpl = (common_sampler *)sampler_ptr;
  
     // first, we check against the model's end of generation tokens
     const llama_vocab *vocab = llama_model_get_vocab(model);
@@ -527,16 +527,16 @@ wooly_check_eog_and_antiprompt(
     return 0;
 }
 
-void*
+wooly_prompt_cache_t*
 wooly_freeze_prediction_state(
-    wooly_gpt_params simple_params,
-    void *llama_context_ptr,
-    void *llama_model_ptr,
+    wooly_gpt_params        simple_params,
+    wooly_llama_context_t*  llama_context_ptr,
+    wooly_llama_model_t*    llama_model_ptr,
     int32_t *predicted_tokens,
     int64_t predicted_token_count)
 {
-    llama_context *ctx = static_cast<llama_context *>(llama_context_ptr); 
-    llama_model *model = static_cast<llama_model *>(llama_model_ptr); 
+    llama_model *model = (llama_model *)llama_model_ptr; 
+    llama_context *ctx = (llama_context *)llama_context_ptr; 
     
     // must be passed the prompt use to freeze the current state
     if (strlen(simple_params.prompt) <= 0) {
@@ -569,19 +569,19 @@ wooly_freeze_prediction_state(
         std::vector<llama_token> predictions(predicted_tokens, predicted_tokens + predicted_token_count);
         prompt_cache->processed_prompt_tokens.insert(prompt_cache->processed_prompt_tokens.end(), predictions.begin(),predictions.end());
     }
-    return prompt_cache;
+    return (wooly_prompt_cache_t*) prompt_cache;
 }
 
 wooly_process_prompt_results
 wooly_defrost_prediction_state(
-    wooly_gpt_params simple_params,
-    void *llama_context_ptr, 
-    void *llama_model_ptr, 
-    void *prompt_cache_ptr)
+    wooly_gpt_params        simple_params,
+    wooly_llama_context_t*  llama_context_ptr, 
+    wooly_llama_model_t*    llama_model_ptr, 
+    wooly_prompt_cache_t*   prompt_cache_ptr)
 {
-    llama_context *ctx = static_cast<llama_context *>(llama_context_ptr); 
-    llama_model *model = static_cast<llama_model *>(llama_model_ptr); 
-    llama_predict_prompt_cache* prompt_cache = static_cast<llama_predict_prompt_cache *>(prompt_cache_ptr); 
+    llama_model *model = (llama_model *)llama_model_ptr; 
+    llama_context *ctx = (llama_context *)llama_context_ptr; 
+    llama_predict_prompt_cache* prompt_cache = (llama_predict_prompt_cache *)prompt_cache_ptr; 
     wooly_process_prompt_results return_value;
 
     // build up a new sampler for the parameters provided
@@ -603,7 +603,7 @@ wooly_defrost_prediction_state(
     llama_synchronize(ctx);
     llama_state_set_data(ctx, prompt_cache->last_processed_prompt_state, prompt_cache->last_processed_prompt_state_size);
 
-    return_value.gpt_sampler = smpl;
+    return_value.gpt_sampler = (wooly_sampler_t*) smpl;
     return_value.result = (int32_t) prompt_cache->processed_prompt_tokens.size();
     return return_value;
 }
@@ -611,16 +611,16 @@ wooly_defrost_prediction_state(
 
 wooly_predict_result 
 wooly_predict(
-    wooly_gpt_params simple_params, 
-    void *llama_context_ptr, 
-    void *llama_model_ptr, 
-    bool include_specials, 
-    char *out_result, 
-    int64_t out_result_size,
-    void* prompt_cache_ptr, 
+    wooly_gpt_params        simple_params, 
+    wooly_llama_context_t*  llama_context_ptr, 
+    wooly_llama_model_t*    llama_model_ptr, 
+    bool                    include_specials, 
+    char*                   out_result, 
+    int64_t                 out_result_size,
+    wooly_prompt_cache_t*   prompt_cache_ptr, 
     wooly_token_update_callback token_cb) 
 {
-    llama_context *ctx = static_cast<llama_context *>(llama_context_ptr); 
+    llama_context *ctx = (llama_context *)llama_context_ptr; 
 
     wooly_predict_result results;
     int64_t t_start_us = ggml_time_us();
@@ -631,11 +631,11 @@ wooly_predict(
 
     bool cache_used = false;
     wooly_process_prompt_results prompt_results;
-    void* prompt_cache = prompt_cache_ptr;
+    wooly_prompt_cache_t* prompt_cache = prompt_cache_ptr;
     if (prompt_cache != NULL) {
         // check to see if the prompts are equal and if they are, restore the cached state.
         // if it is not a match, then
-        llama_predict_prompt_cache* prev_cache = static_cast<llama_predict_prompt_cache*>(prompt_cache);
+        llama_predict_prompt_cache* prev_cache = (llama_predict_prompt_cache*)prompt_cache;
         if (prev_cache->last_prompt == simple_params.prompt) {
             // restore prediction state from the prompt cache
             prompt_results = wooly_defrost_prediction_state(
@@ -677,7 +677,7 @@ wooly_predict(
     int64_t t_p_eval_end_us = ggml_time_us();
 
     // pull the sampler from the prompt processing
-    void* sampler_ptr = prompt_results.gpt_sampler;
+    wooly_sampler_t* sampler_ptr = prompt_results.gpt_sampler;
 
 
     // calculate how many tokens to predict; passing -1 means we use the maximum
@@ -758,7 +758,7 @@ wooly_predict(
 }
 
 void 
-wooly_free_prompt_cache(void *prompt_cache_ptr)
+wooly_free_prompt_cache(wooly_prompt_cache_t* prompt_cache_ptr)
 {
     if (prompt_cache_ptr != nullptr) {
         llama_predict_prompt_cache *prompt_cache_data = (llama_predict_prompt_cache *) prompt_cache_ptr;
@@ -1010,14 +1010,14 @@ conv_wooly_to_llama_context_params(wooly_llama_context_params wooly_params)
 }
 
 int32_t 
-wooly_llama_n_embd(void *llama_model_ptr) 
+wooly_llama_n_embd(wooly_llama_model_t *llama_model_ptr) 
 {
     return llama_model_n_embd((const llama_model *)llama_model_ptr);
 }
 
 int64_t
 wooly_llama_tokenize(
-    void *llama_ctx_ptr, 
+    wooly_llama_context_t*llama_ctx_ptr, 
     const char* text,
     bool add_special,
     bool parse_special,
@@ -1042,7 +1042,7 @@ wooly_llama_tokenize(
 
 int64_t 
 wooly_llama_detokenize(
-    void *llama_context_ptr, 
+    wooly_llama_context_t* llama_context_ptr, 
     bool render_specials, 
     int32_t* tokens,
     int64_t tokens_size,
@@ -1054,7 +1054,7 @@ wooly_llama_detokenize(
         
     // render the tokens out to the string
     auto string = common_detokenize(
-        static_cast<llama_context*>(llama_context_ptr), 
+        (llama_context*)llama_context_ptr, 
         input_tokens, 
         render_specials);
 
@@ -1125,8 +1125,8 @@ static void batch_decode_embeddings(llama_context * ctx, llama_batch & batch, fl
 
 int64_t
 wooly_llama_make_embeddings(
-    void *llama_model_ptr,
-    void *llama_context_ptr,
+    wooly_llama_model_t *llama_model_ptr,
+    wooly_llama_context_t *llama_context_ptr,
     int32_t batch_size,
     int32_t pooling_type,
     int32_t embd_normalize,
@@ -1166,7 +1166,7 @@ wooly_llama_make_embeddings(
         // encode if at capacity
         if (batch.n_tokens + n_toks > batch_size) {
             float * out = output_embeddings + e * n_embd;
-            batch_decode_embeddings(static_cast<llama_context *>(llama_context_ptr), batch, out, s, n_embd, embd_normalize);
+            batch_decode_embeddings((llama_context *)llama_context_ptr, batch, out, s, n_embd, embd_normalize);
             e += pooling_type == LLAMA_POOLING_TYPE_NONE ? batch.n_tokens : s;
             s = 0;
             common_batch_clear(batch);
@@ -1179,7 +1179,7 @@ wooly_llama_make_embeddings(
 
     // final batch - after this our embeddings vector should be fully populated
     float * out = output_embeddings + e * n_embd;
-    batch_decode_embeddings(static_cast<llama_context *>(llama_context_ptr), batch, out, s, n_embd, embd_normalize);
+    batch_decode_embeddings((llama_context *)llama_context_ptr, batch, out, s, n_embd, embd_normalize);
 
     return 0;
 }

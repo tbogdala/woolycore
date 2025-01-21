@@ -101,7 +101,7 @@ void test_predictions() {
     // freeze the state of the context after processing the prompt so that
     // we may dethaw it repeatedly to remove prompt processing penalty for
     // multiple generations.
-    void* prompt_cache = wooly_freeze_prediction_state(
+    wooly_prompt_cache_t* prompt_cache = wooly_freeze_prediction_state(
         params, 
         loaded_model.ctx, 
         loaded_model.model,
@@ -115,7 +115,7 @@ void test_predictions() {
 
     // run a prediction loop
     int32_t predicted = 0;
-    void* sampler_ptr = results.gpt_sampler;
+    wooly_sampler_t* sampler_ptr = results.gpt_sampler;
     while (predicted < params.n_predict) {
         predicted_tokens[predicted] = wooly_sample_next(loaded_model.ctx, sampler_ptr);
         
@@ -151,7 +151,7 @@ void test_predictions() {
 
 
     // freeze the state again after the text prediction
-    void* first_prediction_cache = wooly_freeze_prediction_state(
+    wooly_prompt_cache_t* first_prediction_cache = wooly_freeze_prediction_state(
         params, 
         loaded_model.ctx, 
         loaded_model.model,
