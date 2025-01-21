@@ -4,8 +4,8 @@ A thin C wrapper around the [llama.cpp library](https://github.com/ggerganov/lla
 API that provides a surface to build FFI libraries on top of for other languages.
 
 Upstream llama.cpp is pinned to commit 
-[924518E](https://github.com/ggerganov/llama.cpp/commit/924518e2e5726e81f3aeb2518fb85963a500e93a)
-from Jan 12, 2025.
+[6171C9D](https://github.com/ggerganov/llama.cpp/commit/6171c9d25820ccf676b243c172868819d882848f)
+from Jan 21, 2025.
 
 Supported Operating Systems: Windows, MacOS, Linux, iOS, Android 
 
@@ -146,12 +146,6 @@ API.
 *   This library creates its own version of the structures to avoid failure cases where upstream
     llama.cpp structs have C++ members and cannot be wrapped automatically by tooling. While 
     inconvenient, I chose to do that over an opaque pointer and getter/setter functions.
-
-*   The `void*` parameters in the public functions of `bindings.h` are `void` so that languages
-    that can automatically create bindings on types don't try to dig further and require
-    the processing of types defined in llama.cpp - because some of them will eventually include
-    c++ members and those cannot be wrapped. This is unfortunate, but necessary, so care must
-    be taken to provide the right pointers to the functions.
 
 
 ### TODO
