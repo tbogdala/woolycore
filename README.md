@@ -36,6 +36,7 @@ MIT licensed, like the core upstream `llama.cpp` it wraps. See `LICENSE` for det
   predictions that have been frozen.
 * Tokenize text or just get the number of tokens for a given text string.
 * Generate embeddings using models such as `nomic-ai/nomic-embed-text-v1.5-GGUF` on HuggingFace in a batched process.
+* Automatic formatted prompt string construction is supported for GGUF models with embedded chat templates.
 
 
 ## Build Instructions

@@ -6,6 +6,12 @@
   for the external API. This change has been brewing for some time and is the only major break
   for the near future.
 
+* feature: New `wooly_has_chat_template()` and `wooly_apply_chat_template` which takes a list of
+  the new `wooly_chat_message` struct and uses the embedded template inside the GGUF model to 
+  build a prompt with the list of messages supplied.
+
+* feature: New unit test called `test_chat_formatting` to test the new embedded chat template code.
+
 * breaking: `penalize_nl` was removed from `wooly_gpt_params` as it was removed upstream in llama.cpp.
 
 

@@ -30,6 +30,12 @@ typedef struct wooly_sampler_s wooly_sampler_t;
 typedef struct wooly_prompt_cache_s wooly_prompt_cache_t;
 
 
+// Make the llama_chat_message struct visible under our banner
+typedef struct wooly_chat_message {
+    const char * role;
+    const char * content;
+} wooly_chat_message;
+
 typedef struct wooly_load_model_result {
     wooly_llama_model_t*    model;
     wooly_llama_context_t*  ctx;
@@ -364,6 +370,28 @@ wooly_llama_detokenize(
     char *                      out_result, 
     int64_t                     out_result_size);    
 
+
+// returns `true` if the loaded model has a default chat template
+LLAMA_API bool
+wooly_has_chat_template(
+    const wooly_llama_model_t*     llama_model_ptr);
+
+
+// applies the embedded chat template in the loaded model. a
+// `chat_template` string can be provided to instead use a default
+// common template. if `chat_template` is left blank and no embedded
+// template exists, it will use 'chatml' formatting to format the 
+// prompt.
+//
+// the function returns the number of characters in the prompt.
+LLAMA_API int64_t
+wooly_apply_chat_template(
+    const wooly_llama_model_t*      llama_model_ptr,
+    const char*                     chat_template,
+    const wooly_chat_message*       chat_messages,
+    int64_t                         chat_message_count,
+    char *                          out_result, 
+    int64_t                         out_result_size);
 
 // calculates embeddings for the given token arrays. 
 //

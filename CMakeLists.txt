@@ -73,7 +73,16 @@ if(WOOLY_TESTS)
     )
     target_compile_features(test_prediction_steps PRIVATE cxx_std_11)
 
+    add_executable(test_chat_formatting tests/test_chat_formatting.cpp)
+    target_include_directories(test_chat_formatting PRIVATE 
+        "llama.cpp/include"
+        "llama.cpp/ggml/include"
+        "llama.cpp/common"
+    )
+    target_compile_features(test_chat_formatting PRIVATE cxx_std_11)
+
     target_link_libraries(test_predictions PRIVATE woolycore unity)
     target_link_libraries(test_prediction_steps PRIVATE woolycore unity)
     target_link_libraries(test_embeddings PRIVATE woolycore unity common llama)
+    target_link_libraries(test_chat_formatting PRIVATE woolycore unity)
 endif()

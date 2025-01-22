@@ -99,8 +99,8 @@ wooly_load_model(
 #endif
     }
 
-    llama_backend_init();
-    llama_numa_init(GGML_NUMA_STRATEGY_DISABLED);
+    // load dynamic backends
+    ggml_backend_load_all();
     
     llama_model *model = nullptr;
     llama_context * lctx = nullptr;
@@ -1066,6 +1066,48 @@ wooly_llama_detokenize(
     // copy the result and then return the length of the string
     std::strcpy(out_result, string.c_str());
     return string.length();
+}
+
+bool
+wooly_has_chat_template(
+    const wooly_llama_model_t*     llama_model_ptr)
+{
+    auto str = llama_model_chat_template((const llama_model *)llama_model_ptr, /* name */ nullptr);
+    if (str) {
+        return true;
+    }
+
+    return false;
+}
+
+int64_t
+wooly_apply_chat_template(
+    const wooly_llama_model_t*      llama_model_ptr,
+    const char*                     chat_template,
+    const wooly_chat_message*       chat_messages,
+    int64_t                         chat_message_count,
+    char *                          out_result, 
+    int64_t                         out_result_size)
+{
+    auto tmpl = llama_model_chat_template((const llama_model *)llama_model_ptr, /* name */ nullptr);
+    if (tmpl == NULL) {
+        return true;
+    }
+
+    // build up the native type it expects.
+    llama_chat_message* llama_chat_msgs = new llama_chat_message[chat_message_count];
+    for (int64_t i = 0; i < chat_message_count; ++i) {
+        llama_chat_msgs[i].role = chat_messages[i].role;
+        llama_chat_msgs[i].content = chat_messages[i].content;
+    }
+
+    // do the actual application of the template specified.
+    int actual_len = llama_chat_apply_template(tmpl, llama_chat_msgs, chat_message_count, true, out_result, out_result_size);
+
+    // done with our temporary conversion
+    delete[] llama_chat_msgs;
+
+    return actual_len;
 }
 
 // yoinked from the embedding.cpp example in upstream llama.cpp
