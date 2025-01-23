@@ -1096,11 +1096,7 @@ wooly_apply_chat_template(
     // if getting the overrided chat template by name fails, then we'll just use it like a standard
     // 'common name' for a supported template format.
     if (tmpl == NULL) {
-        if (chat_template == NULL) {
-            tmpl = "chatml";
-        } else {
-            tmpl = chat_template;
-        }
+        tmpl = chat_template;
     }
 
     // build up the native type it expects.
