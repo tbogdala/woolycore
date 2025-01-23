@@ -100,6 +100,7 @@ void test_chat_formatting() {
         wooly_apply_chat_template(
             loaded_model.model, 
             NULL,
+            true,
             messages.data(),
             messages.size(),
             prompt_buffer,

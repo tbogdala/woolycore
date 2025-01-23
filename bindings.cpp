@@ -1084,6 +1084,7 @@ int64_t
 wooly_apply_chat_template(
     const wooly_llama_model_t*      llama_model_ptr,
     const char*                     chat_template,
+    bool                            include_assistant,
     const wooly_chat_message*       chat_messages,
     int64_t                         chat_message_count,
     char *                          out_result, 
@@ -1102,7 +1103,7 @@ wooly_apply_chat_template(
     }
 
     // do the actual application of the template specified.
-    int actual_len = llama_chat_apply_template(tmpl, llama_chat_msgs, chat_message_count, true, out_result, out_result_size);
+    int actual_len = llama_chat_apply_template(tmpl, llama_chat_msgs, chat_message_count, include_assistant, out_result, out_result_size);
 
     // done with our temporary conversion
     delete[] llama_chat_msgs;

@@ -381,13 +381,15 @@ wooly_has_chat_template(
 // `chat_template` string can be provided to instead use a default
 // common template. if `chat_template` is left blank and no embedded
 // template exists, it will use 'chatml' formatting to format the 
-// prompt.
+// prompt. `include_assistant` determines whether or not to end the
+// prompt with the the start of the assistant prompt.
 //
 // the function returns the number of characters in the prompt.
 LLAMA_API int64_t
 wooly_apply_chat_template(
     const wooly_llama_model_t*      llama_model_ptr,
     const char*                     chat_template,
+    bool                            include_assistant,
     const wooly_chat_message*       chat_messages,
     int64_t                         chat_message_count,
     char *                          out_result, 
