@@ -1090,9 +1090,17 @@ wooly_apply_chat_template(
     char *                          out_result, 
     int64_t                         out_result_size)
 {
-    auto tmpl = llama_model_chat_template((const llama_model *)llama_model_ptr, /* name */ nullptr);
+    // try to pull a chat template from the model file
+    auto tmpl = llama_model_chat_template((const llama_model *)llama_model_ptr, chat_template);
+    
+    // if getting the overrided chat template by name fails, then we'll just use it like a standard
+    // 'common name' for a supported template format.
     if (tmpl == NULL) {
-        return true;
+        if (chat_template == NULL) {
+            tmpl = "chatml";
+        } else {
+            tmpl = chat_template;
+        }
     }
 
     // build up the native type it expects.
