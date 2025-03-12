@@ -4,8 +4,8 @@ A thin C wrapper around the [llama.cpp library](https://github.com/ggerganov/lla
 API that provides a surface to build FFI libraries on top of for other languages.
 
 Upstream llama.cpp is pinned to commit 
-[818A340](https://github.com/ggml-org/llama.cpp/commit/818a340ea8be55b3706e1772527cb8738e90a8c7)
-from Feb 16, 2025.
+[f08f4b3](https://github.com/ggml-org/llama.cpp/commit/f08f4b3187b691bb08a8884ed39ebaa94e956707)
+from March 12, 2025.
 
 Supported Operating Systems: Windows, MacOS, Linux, iOS, Android 
 
