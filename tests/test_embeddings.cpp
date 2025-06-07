@@ -36,7 +36,7 @@ static void batch_decode_embeddings(llama_context * ctx, llama_batch & batch, fl
     const struct llama_model * model = llama_get_model(ctx);
 
     // clear previous kv_cache values (irrelevant for embeddings)
-    llama_kv_cache_clear(ctx);
+    llama_kv_self_clear(ctx);
 
     // run model
     //fprintf(stderr, "%s: n_tokens = %d, n_seq = %d\n", __func__, batch.n_tokens, n_seq);

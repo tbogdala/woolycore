@@ -161,7 +161,7 @@ wooly_load_model(
         if (llama_model_has_decoder(model)) {
             llama_decode(lctx, llama_batch_get_one(tmp.data(), std::min((int32_t) tmp.size(), (int32_t) context_params.n_batch)));
         }
-        llama_kv_cache_clear(lctx);
+        llama_kv_self_clear(lctx);
         llama_synchronize(lctx);
         llama_perf_context_reset(lctx);
     }
@@ -299,7 +299,7 @@ wooly_process_prompt(
 
 
     // Reset KV Cache and timing data
-    llama_kv_cache_clear(ctx);
+    llama_kv_self_clear(ctx);
     llama_perf_context_reset(ctx);
 
 
@@ -965,7 +965,6 @@ wooly_get_default_llama_context_params()
     output.yarn_beta_slow = defaults.yarn_beta_slow;
     output.yarn_attn_factor = defaults.yarn_attn_factor;
     output.defrag_thold = defaults.defrag_thold;
-    output.logits_all = defaults.logits_all;
     output.embeddings = defaults.embeddings;
     output.offload_kqv = defaults.offload_kqv;
     output.flash_attn = defaults.flash_attn;
@@ -1001,7 +1000,6 @@ conv_wooly_to_llama_context_params(wooly_llama_context_params wooly_params)
     params.yarn_beta_slow = wooly_params.yarn_beta_slow;
     params.yarn_attn_factor = wooly_params.yarn_attn_factor;
     params.defrag_thold = wooly_params.defrag_thold;
-    params.logits_all = wooly_params.logits_all;
     params.embeddings = wooly_params.embeddings;
     params.offload_kqv = wooly_params.offload_kqv;
     params.flash_attn = wooly_params.flash_attn;
@@ -1129,7 +1127,7 @@ static void batch_decode_embeddings(llama_context * ctx, llama_batch & batch, fl
     const struct llama_model * model = llama_get_model(ctx);
 
     // clear previous kv_cache values (irrelevant for embeddings)
-    llama_kv_cache_clear(ctx);
+    llama_kv_self_clear(ctx);
 
     // run model
     //fprintf(stderr, "%s: n_tokens = %d, n_seq = %d\n", __func__, batch.n_tokens, n_seq);
